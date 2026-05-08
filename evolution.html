@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>班級品性模擬器 - n次方距離版</title>
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            background-color: #f0f2f5; padding: 20px;
+        }
+        .main-container {
+            display: flex; gap: 30px; background: white;
+            padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .grid {
+            display: grid; grid-template-columns: repeat(7, 50px);
+            grid-template-rows: repeat(7, 50px); gap: 5px;
+            border: 2px solid #ccc; padding: 5px; background: #fff;
+        }
+        .cell {
+            width: 50px; height: 50px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; cursor: pointer; user-select: none;
+            border: 1px solid rgba(0,0,0,0.1); transition: background 0.2s;
+        }
+        .controls { width: 320px; display: flex; flex-direction: column; gap: 12px; }
+        .control-group {
+            display: flex; flex-direction: column; gap: 5px;
+            padding-bottom: 8px; border-bottom: 1px solid #eee;
+        }
+        label { font-weight: bold; font-size: 14px; }
+        input[type="range"] { width: 100%; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; color: #d32f2f; }
+        .btn-group { display: flex; gap: 10px; margin-top: 5px; }
+        button { padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; flex: 1; }
+        #startBtn { background-color: #4CAF50; color: white; }
+        #stopBtn { background-color: #f44336; color: white; }
+        #resetBtn { background-color: #2196F3; color: white; }
+        #randomBtn { background-color: #9c27b0; color: white; }
+        .status { margin-top: 10px; font-size: 12px; color: #666; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <h2>班級成員影響力模擬 (n次方權重版)</h2>
+
+    <div class="main-container">
+        <div class="grid" id="studentGrid"></div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>設定初始值: <span id="initSetVal">0</span></label>
+                <input type="range" id="initSetSlider" min="-100" max="100" value="0">
+                <div class="btn-group">
+                    <button id="resetBtn">套用至全員</button>
+                    <button id="randomBtn">全員隨機</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="useDistance" checked>
+                    <label for="useDistance">啟用距離衰減影響</label>
+                </div>
+                <label>距離權重次方 (n): <span id="distExpVal">2.0</span></label>
+                <input type="range" id="distExpSlider" min="0.1" max="5.0" step="0.1" value="2.0">
+                <small style="color:#888">n=1:一次方反比 | n=2:平方反比</small>
+            </div>
+
+            <div class="control-group">
+                <label>好學生影響力: <span id="goodInfVal">10</span>%</label>
+                <input type="range" id="goodInf" min="1" max="80" value="10">
+            </div>
+
+            <div class="control-group">
+                <label>壞學生影響力: <span id="badInfVal">10</span>%</label>
+                <input type="range" id="badInf" min="1" max="80" value="10">
+            </div>
+
+            <div class="control-group">
+                <label>變化速度 (次/秒): <span id="speedVal">10</span></label>
+                <input type="range" id="speed" min="1" max="500" value="10">
+            </div>
+
+            <div class="btn-group">
+                <button id="startBtn">開始計算</button>
+                <button id="stopBtn" disabled>停止</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const gridElement = document.getElementById('studentGrid');
+        const goodInfInput = document.getElementById('goodInf');
+        const badInfInput = document.getElementById('badInf');
+        const speedInput = document.getElementById('speed');
+        const initSlider = document.getElementById('initSetSlider');
+        const distToggle = document.getElementById('useDistance');
+        const distExpSlider = document.getElementById('distExpSlider');
+        
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const randomBtn = document.getElementById('randomBtn');
+
+        let students = Array(49).fill(0);
+        let timer = null;
+
+        function init() {
+            renderGrid();
+            
+            const sliders = [
+                { el: goodInfInput, valId: 'goodInfVal' },
+                { el: badInfInput, valId: 'badInfVal' },
+                { el: speedInput, valId: 'speedVal' },
+                { el: initSlider, valId: 'initSetVal' },
+                { el: distExpSlider, valId: 'distExpVal' }
+            ];
+
+            sliders.forEach(item => {
+                item.el.addEventListener('input', () => {
+                    document.getElementById(item.valId).innerText = item.el.value;
+                    if (item.el.id === 'speed' && timer) { restartSim(); }
+                });
+            });
+
+            startBtn.onclick = startSim;
+            stopBtn.onclick = stopSim;
+            resetBtn.onclick = () => { students = Array(49).fill(parseFloat(initSlider.value)); updateDisplay(); };
+            randomBtn.onclick = () => { students = students.map(() => Math.floor(Math.random() * 201) - 100); updateDisplay(); };
+        }
+
+        function getDistance(idx1, idx2) {
+            const x1 = idx1 % 7, y1 = Math.floor(idx1 / 7);
+            const x2 = idx2 % 7, y2 = Math.floor(idx2 / 7);
+            return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+        }
+
+        function getColor(value) {
+            const hue = (value + 100) * 0.6;
+            return `hsl(${hue}, 80%, 50%)`;
+        }
+
+        function renderGrid() {
+            gridElement.innerHTML = '';
+            students.forEach((val, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.innerText = Math.round(val);
+                cell.style.backgroundColor = getColor(val);
+                cell.onclick = () => {
+                    const newVal = prompt(`學生 ${index} 值:`, val);
+                    if (newVal !== null) {
+                        students[index] = Math.max(-100, Math.min(100, parseFloat(newVal) || 0));
+                        updateDisplay();
+                    }
+                };
+                gridElement.appendChild(cell);
+            });
+        }
+
+        function updateDisplay() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach((cell, i) => {
+                cell.innerText = Math.round(students[i]);
+                cell.style.backgroundColor = getColor(students[i]);
+            });
+        }
+
+        function calculateInfluence() {
+            const goodInf = parseFloat(goodInfInput.value) / 100;
+            const badInf = parseFloat(badInfInput.value) / 100;
+            const exponent = parseFloat(distExpSlider.value);
+            const isDistEnabled = distToggle.checked;
+            
+            let nextState = [...students];
+
+            for (let i = 0; i < 49; i++) {
+                let totalEffect = 0;
+                let weightSum = 0;
+
+                for (let j = 0; j < 49; j++) {
+                    if (i === j) continue;
+
+                    let infBase = students[j] >= 0 ? goodInf : badInf;
+                    let weight = 1;
+
+                    if (isDistEnabled) {
+                        const d = getDistance(i, j);
+                        // 使用 n 次方權重: 1 / (d^n)
+                        weight = 1 / Math.pow(d, exponent);
+                    }
+
+                    totalEffect += (students[j] * infBase * weight);
+                    weightSum += weight;
+                }
+                
+                // 根據總權重進行歸一化，確保數值變化速度穩定
+                nextState[i] = students[i] + (totalEffect / (isDistEnabled ? weightSum : 48));
+                
+                if (nextState[i] > 100) nextState[i] = 100;
+                if (nextState[i] < -100) nextState[i] = -100;
+            }
+            students = nextState;
+            updateDisplay();
+        }
+
+        function startSim() {
+            startBtn.disabled = true; stopBtn.disabled = false;
+            const ms = 1000 / parseInt(speedInput.value);
+            timer = setInterval(calculateInfluence, ms);
+        }
+
+        function stopSim() {
+            startBtn.disabled = false; stopBtn.disabled = true;
+            clearInterval(timer); timer = null;
+        }
+
+        function restartSim() { stopSim(); startSim(); }
+
+        init();
+    </script>
+</body>
+</html>

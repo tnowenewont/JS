@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>粒子碰撞與波茲曼分佈模擬器 - 進階版</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #222; color: white; }
+        canvas { background: #000; border: 2px solid #555; }
+        .controls { margin: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #333; padding: 15px; border-radius: 8px; }
+        .chart-container { margin-top: 10px; position: relative; }
+        label { font-size: 14px; }
+        .legend { display: flex; justify-content: center; gap: 20px; font-size: 12px; margin-top: 5px; }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+    </style>
+</head>
+<body>
+
+    <h2>粒子碰撞模擬：Maxwell-Boltzmann 分佈</h2>
+    
+    <canvas id="simCanvas" width="600" height="400"></canvas>
+
+    <div class="controls">
+        <label>粒子數: <span id="countVal">100</span></label>
+        <input type="range" id="particleCount" min="20" max="300" value="100">
+        
+        <label>初始速度: <span id="speedVal">5</span></label>
+        <input type="range" id="initSpeed" min="1" max="15" value="5">
+
+        <label>重力: <span id="gravityVal">0</span></label>
+        <input type="range" id="gravity" min="0" max="0.5" step="0.01" value="0">
+
+        <button onclick="resetSim()" style="grid-column: span 2; padding: 10px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px;">重新開始</button>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="chartCanvas" width="600" height="150"></canvas>
+        <div class="legend">
+            <div class="legend-item"><div style="width:12px; height:12px; background:#0af;"></div> 實測分佈 (直方圖)</div>
+            <div class="legend-item"><div style="width:12px; height:2px; background:#ff4444;"></div> 理論曲線 (波茲曼)</div>
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+const chartCanvas = document.getElementById('chartCanvas');
+const chartCtx = chartCanvas.getContext('2d');
+
+let particles = [];
+const radius = 4;
+const maxSpeedLimit = 25; // 繪圖與統計上限
+
+function createParticle(vMax) {
+    return {
+        x: Math.random() * (canvas.width - radius * 2) + radius,
+        y: Math.random() * (canvas.height - radius * 2) + radius,
+        vx: (Math.random() - 0.5) * vMax * 2,
+        vy: (Math.random() - 0.5) * vMax * 2,
+        m: 1
+    };
+}
+
+function resetSim() {
+    const count = document.getElementById('particleCount').value;
+    const speed = document.getElementById('initSpeed').value;
+    document.getElementById('countVal').innerText = count;
+    document.getElementById('speedVal').innerText = speed;
+    
+    particles = [];
+    for (let i = 0; i < count; i++) {
+        particles.push(createParticle(parseFloat(speed)));
+    }
+}
+
+function update() {
+    const g = parseFloat(document.getElementById('gravity').value);
+    document.getElementById('gravityVal').innerText = g;
+
+    for (let i = 0; i < particles.length; i++) {
+        let p = particles[i];
+        p.vy += g;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x - radius < 0 || p.x + radius > canvas.width) p.vx *= -1;
+        if (p.y - radius < 0 || p.y + radius > canvas.height) p.vy *= -1;
+        
+        p.x = Math.max(radius, Math.min(canvas.width - radius, p.x));
+        p.y = Math.max(radius, Math.min(canvas.height - radius, p.y));
+
+        for (let j = i + 1; j < particles.length; j++) {
+            let p2 = particles[j];
+            let dx = p2.x - p.x;
+            let dy = p2.y - p.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < radius * 2) {
+                let angle = Math.atan2(dy, dx);
+                let sin = Math.sin(angle), cos = Math.cos(angle);
+                let v1 = { x: p.vx * cos + p.vy * sin, y: p.vy * cos - p.vx * sin };
+                let v2 = { x: p2.vx * cos + p2.vy * sin, y: p2.vy * cos - p2.vx * sin };
+                let temp = v1.x; v1.x = v2.x; v2.x = temp;
+                p.vx = v1.x * cos - v1.y * sin;
+                p.vy = v1.y * cos + v1.x * sin;
+                p2.vx = v2.x * cos - v2.y * sin;
+                p2.vy = v2.y * cos + v2.x * sin;
+                let overlap = radius * 2 - dist;
+                p.x -= (overlap / 2) * cos; p.y -= (overlap / 2) * sin;
+                p2.x += (overlap / 2) * cos; p2.y += (overlap / 2) * sin;
+            }
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+        let speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        // 修改 1 & 2：顏色固定黃色，亮度隨速度變化 (20% 到 90%)
+        let brightness = Math.min(90, 20 + (speed / 15) * 70);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(60, 100%, ${brightness}%)`; 
+        ctx.shadowBlur = speed > 10 ? 5 : 0; // 高速粒子加點發光感
+        ctx.shadowColor = "yellow";
+        ctx.fill();
+        ctx.closePath();
+    });
+    ctx.shadowBlur = 0;
+
+    drawChart();
+    update();
+    requestAnimationFrame(draw);
+}
+
+function drawChart() {
+    chartCtx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+    const binCount = 30;
+    const bins = new Array(binCount).fill(0);
+    let totalSpeedSq = 0;
+
+    particles.forEach(p => {
+        let speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        totalSpeedSq += speed * speed;
+        let binIdx = Math.floor((speed / maxSpeedLimit) * binCount);
+        if (binIdx < binCount) bins[binIdx]++;
+    });
+
+    const binWidth = chartCanvas.width / binCount;
+    
+    // 繪製直方圖
+    chartCtx.fillStyle = 'rgba(0, 170, 255, 0.6)';
+    bins.forEach((count, i) => {
+        let h = (count / particles.length) * chartCanvas.height * 8; 
+        chartCtx.fillRect(i * binWidth, chartCanvas.height - h, binWidth - 1, h);
+    });
+
+    // 修改 3：繪製理論 Maxwell-Boltzmann 分佈 (2D)
+    // 2D 速率分佈公式: f(v) = (m / kT) * v * exp(-mv^2 / 2kT)
+    // 根據能量均分，1/2 m <v^2> = kT (2D 系統)
+    const kT = (0.5 * totalSpeedSq) / particles.length; 
+    
+    chartCtx.beginPath();
+    chartCtx.strokeStyle = '#ff4444';
+    chartCtx.lineWidth = 2;
+
+    for (let x = 0; x < chartCanvas.width; x++) {
+        let v = (x / chartCanvas.width) * maxSpeedLimit;
+        // 2D Maxwell-Boltzmann 分佈函數
+        let fv = (v / kT) * Math.exp(-(v * v) / (2 * kT));
+        
+        // 縮放高度以匹配直方圖
+        let canvasY = chartCanvas.height - (fv * (maxSpeedLimit / binCount) * chartCanvas.height * 8);
+        
+        if (x === 0) chartCtx.moveTo(x, canvasY);
+        else chartCtx.lineTo(x, canvasY);
+    }
+    chartCtx.stroke();
+}
+
+resetSim();
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+    
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Boltzmann Distribution</title>
+        
+        <style>
+            p{color:yellow;
+              font-size: 20px}
+        </style>
+       
+    </head>
+    
+    
+    
+    <body style="background-color:dimgray;">
+        <canvas id="myCanvas" style="border:1px solid  #999999"  >  abc </canvas>
+        
+        <div>  <p>
+		人數<input type="number" id="number"　size="10" value="200" onchange="change()">    
+                            
+		
+		金額<input type="number"  id="fct" size="10"  value="5"  onchange="change()">         
+            
+        回合<input type="number"  id="round" size="10"  value="0"  onchange="change()">
+            <input type="button" id="button" value="debt is Not allowed" onclick="ch_debt()" />
+ 
+		</p>	     
+        </div>
+        
+        
+
+        
+        
+        
+        <script>
+        var myCanvas=document.getElementById("myCanvas");
+		myCanvas.width=window.innerWidth;
+		myCanvas.height=window.innerHeight*80/100;
+	    var W=myCanvas.width, H=myCanvas.height;
+        var x0=W/10, y0=H/20, w=W*0.8, h=H*0.9;    
+        var context=myCanvas.getContext("2d");
+            
+		var fct=document.getElementById("fct");
+        var rs=document.getElementById("round");		
+		var inNumber=document.getElementById("number");
+        
+		var N,dolars,rounds;	
+        var money;
+        var max, min,n;
+        var frequency;
+        var most; 
+        var debt=false;
+            
+        //***************開啟網頁時預設執行**********//    
+            ini();
+            paint();
+            main();
+        //***************************************//    
+        
+        function change(){      //數值改變時執行程序
+            ini();
+            if(debt==false){main();}else{main2();}            
+        }    
+         
+            
+            
+        function ch_debt(){
+            debt = !debt;
+            if(debt==true){document.getElementById("button").value="bebt is ALLOWED";}
+            else{document.getElementById("button").value="debt is Not allowed";}
+        }     
+            
+        
+        function ini(){
+            N=parseInt(inNumber.value);
+            dolars=parseInt(fct.value);
+            rounds=parseInt(rs.value);
+            money=new Array(N); 
+            for(var i=0;i<N;i++)
+            {   
+            money[i]=dolars; //initial money
+            }
+            
+        }
+            
+            
+            
+            
+            
+        function main(){            
+            for(var r=0;r<rounds;r++){
+                for(var i=0;i<N;i++){
+                    for(var j=0;j<N;j++){
+                        guess(i,j);
+                    }
+                }
+            }
+                    paint();
+                    
+        }
+            
+            
+            
+        function main2(){            
+            for(var r=0;r<rounds;r++){
+                for(var i=0;i<N;i++){
+                    for(var j=0;j<N;j++){
+                        guess2(i,j);
+                    }
+                }
+            }
+                    paint();
+                    
+        }   
+            
+            
+            
+        
+       
+            
+        
+            
+            
+        function guess(i,j){
+            if(i!=j)
+            {if(Math.random()>0.5){
+                            if(money[j]>0){money[i]++; money[j]--;}
+                        }else{
+                            if(money[i]>0){money[j]++; money[i]--;}
+                        }
+            }
+        }   
+        
+            
+        function guess2(i,j){
+            if(i!=j)
+            {if(Math.random()>0.5){
+                            if(true){money[i]++; money[j]--;}
+                        }else{
+                            if(true){money[j]++; money[i]--;}
+                        }
+            }
+        } 
+        
+        
+            
+        function distribution(D){
+            let max=find_max(D);
+            var dis=new Array(max+1);
+            
+            for(var i=0;i<dis.length;i++){
+                dis[i]=0;
+            }
+            
+            for(var i=0;i<D.length;i++){
+                
+                dis[D[i]]++;
+            }
+            return dis;
+        }    
+            
+            
+            
+        function find_max(A){
+            let x=0;
+            for (var i=0;i<A.length;i++){
+                if (A[i]>x) {x=A[i];}
+            }
+            return x;
+        }
+        
+        function find_min(A){
+            let x=100000;
+            for (var i=0;i<A.length;i++){
+                if (A[i]<x) {x=A[i];}
+            }
+            return x;
+        }
+            
+            
+            function paint(){
+                context.clearRect(0, 0, W,H);
+            	context.fillStyle = 'rgb(200, 190, 180)';
+	            context.fillRect(0, 0, W,H);
+                context.lineWidth = 5;
+                context.strokeStyle = 'rgb(0, 0, 0)';
+		        context.beginPath();
+                context.rect(x0,y0,w,h);
+                context.stroke();
+                
+            /************************  數據統計分析  *****************/
+            max=find_max(money);
+            min=find_min(money);
+            n=max+1;                
+            frequency=distribution(money);
+            most=find_max(frequency);
+		
+		
+		var d= (w/n); // 訂間隔
+		
+		for(var j=0;j<=n;j++){		//畫柱狀曲線圖
+			var y=frequency[j]/most*h;	
+                if(y>0){
+				    context.fillStyle = 'rgba(255,100,0,0.8)';
+	                context.fillRect(x0+j*d, y0+h-y, d, y);//柱狀圖
+                    
+                    context.lineWidth = 1;  //描邊
+                    context.rect(x0+j*d, y0+h-y, d, y);
+                    context.stroke();
+                }
+
+
+			
+		}
+                
+		
+		
+
+		context.fillStyle = 'rgba(0,0,0,1)';
+		context.font = "30px Arial";
+        for(var i=0;i<11;i++){
+            context.fillText(min+(max-min)*i/10,x0+w*i/10,h+60);  //x軸座標
+            context.fillText(most*i/10,x0-60,y0+h-i*h/10);  //y軸座標
+            context.fillText("人數",20,H/2);
+            context.fillText("總財產",x0+w+10,h+20);
+				}
+                
+                
+                
+        context.beginPath();
+context.strokeStyle = 'blue';
+           
+for(var x=0; x<w; x+=1){
+    var E = min + (max-min)*(x/w);
+    var f = /*Math.sqrt(E) **/ Math.exp(-E/(dolars)); // 簡化的分佈形式
+    context.lineTo(x0+x, y0+h-f*h);
+   
+}
+context.stroke();
+                
+                
+                
+                
+                
+                
+                
+	     }
+
+
+
+
+
+
+
+
+        </script>
+        
+
+        
+    </body>
+</html>
+<!--
+
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[     CODE THE WEB     ]:::::]
+    [:::::[  http://brackets.io  ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+
+-->

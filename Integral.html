@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+    
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Integral</title>
+        
+        <style>
+            p{color:yellow;
+              font-size: 20px}
+        </style>
+       
+    </head>
+    
+    
+    
+    <body style="background-color:dimgray;">
+        <canvas id="myCanvas" style="border:1px solid  #999999"  >  abc </canvas>
+        
+        <div>  <p>
+		切割數目<input type="number" id="number"　size="4" value="4" onchange="paint()">    
+                 面積<span id="info"></span>                
+		</p>	     
+        </div>
+
+	
+        
+        
+
+        
+        
+        
+        <script>
+		var info=document.getElementById("info");
+		var inNumber=document.getElementById("number");
+		var N=parseInt(inNumber.value);
+            var myCanvas=document.getElementById("myCanvas");
+		myCanvas.width=window.innerWidth*95/100;
+		myCanvas.height=window.innerHeight*80/100;
+	    var W=myCanvas.width,
+		H=myCanvas.height;
+		var context=myCanvas.getContext("2d");
+		paint();
+		
+            function paint(){
+                context.clearRect(0, 0, W,H);
+            	context.fillStyle = 'rgb(200, 190, 180)';
+	        context.fillRect(0, 0, W,H);
+            context.lineWidth = 2;
+            context.strokeStyle = 'rgb(0, 0, 0)';
+		context.beginPath();
+		
+		N=parseInt(inNumber.value);
+		var d= (W/N);  
+		var suml=0;
+		var sumr=0;
+		for(var j=0;j<N;j++){		//畫柱狀曲線圖
+			var y=H-(j*d)*H/W;			
+				context.fillStyle = 'rgba(0,0, 150,0.5)';
+	        		context.fillRect(j*d, y, d, H);
+				context.strokeStyle = 'rgba(100,100,100,0.5)';
+				context.strokeRect(j*d, y, d, H);
+				suml+=y*d;		//left-hand sum
+				
+		}
+
+
+		for(var j=N;j>0;j--){
+			var yr=H-(j*d)*H/W;
+			context.fillStyle = 'rgba(0,150,0,0.5)';
+	        	context.fillRect((j-1)*d, yr, d, H);
+			sumr+=yr*d;	//Right-hand sum
+		}
+
+		context.strokeStyle = "#000000";
+		for(var i=0;i<W;i++){			//畫曲線圖
+			var x=i;	
+			var y=H-i*(H/W);
+			if(y<H){		
+				if(i===0) {context.moveTo(x, y);} else {context.lineTo(x, y);}
+        		}
+		}
+		context.stroke();
+
+		context.fillStyle = 'rgba(0,0, 0,1)';
+		context.font = "30px Arial";
+		context.fillText("H="+H+"; W="+W+"; 面積="+W*H/2, 10, 50);
+		info.innerHTML=" SumL="+ Math.round(suml) +"; SumR="+ Math.round(sumr);		
+	     }
+
+
+        </script>
+        
+
+        
+    </body>
+</html>
+<!--
+
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[     CODE THE WEB     ]:::::]
+    [:::::[  http://brackets.io  ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+
+-->
