@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>聲音合成器 - 全功能互動版</title>
+    <style>
+        body {
+            background-color: #1e272e; color: #ecf0f1; font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; align-items: center; padding: 20px;
+        }
+        .controls {
+            display: flex; gap: 20px; background: #2f3640; padding: 25px;
+            border-radius: 12px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .slider-group { display: flex; flex-direction: column; gap: 12px; }
+        .slider-item { display: flex; align-items: center; gap: 10px; }
+        .slider-item label { width: 90px; color: #fbc531; font-weight: bold; font-size: 0.9em; }
+        .zoom-label { color: #00d8d6 !important; }
+        
+        input[type="range"] { width: 150px; cursor: pointer; }
+        #frequencyInput { width: 80px; padding: 8px; border-radius: 4px; border: none; font-size: 1.2em; text-align: center; }
+
+        .status-indicator { margin-top: 10px; font-size: 0.85em; text-align: center; padding: 6px 15px; border-radius: 20px; font-weight: bold; }
+        .status-off { background: #718093; color: #2f3640; }
+        .status-on { background: #4cd137; color: #fff; box-shadow: 0 0 15px #4cd137; }
+
+        #kbd { display: flex; justify-content: center; height: 160px; margin-bottom: 20px; position: relative; }
+        .note {
+            border: 1px solid #000; cursor: pointer; display: flex; align-items: flex-end;
+            justify-content: center; padding-bottom: 12px; user-select: none; transition: background 0.1s;
+        }
+        .white { width: 45px; height: 100%; background: #f5f6fa; color: #2f3640; z-index: 1; border-radius: 0 0 4px 4px; }
+        .black { width: 30px; height: 60%; background: #353b48; color: white; margin: 0 -15px; z-index: 2; border-radius: 0 0 3px 3px; }
+        
+        /* 啟動狀態的顏色 */
+        .active-white { background: #dcdde1 !important; transform: translateY(2px); box-shadow: inset 0 5px 10px rgba(0,0,0,0.2); }
+        .active-black { background: #191c22 !important; transform: translateY(2px); }
+
+        .btn-group button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; background: #718093; color: white; }
+        .btn-group button.active { background: #e67e22; }
+        
+        .visual-container { width: 100%; max-width: 850px; }
+        canvas { background: #000; border: 3px solid #353b48; border-radius: 10px; width: 100%; height: 300px; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div class="slider-group">
+            <div class="slider-item"><label>基音強度</label><input type="range" id="pitch" min="0" max="1" step="0.01" value="0.5"></div>
+            <div class="slider-item"><label>第一泛音</label><input type="range" id="overTone1" min="0" max="1" step="0.01" value="0.2"></div>
+            <div class="slider-item"><label>第二泛音</label><input type="range" id="overTone2" min="0" max="1" step="0.01" value="0.1"></div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-item"><label class="zoom-label">水平縮放</label><input type="range" id="zoomX" min="0.001" max="0.1" step="0.001" value="0.02"></div>
+            <div class="slider-item"><label class="zoom-label">垂直振幅</label><input type="range" id="zoomY" min="0.1" max="2.0" step="0.1" value="1.0"></div>
+            <div class="btn-group" style="margin-top: 5px;">
+                <button onclick="setWave('sine')" id="btn-sine" class="active">正弦波</button>
+                <button onclick="setWave('square')" id="btn-square">方波</button>
+                <button onclick="setWave('sawtooth')" id="btn-sawtooth">鋸齒波</button>
+                <button onclick="setWave('triangle')" id="btn-triangle">三角波</button>
+            </div>
+        </div>
+
+        <div class="slider-group" style="align-items: center;">
+            <div>頻率: <input type="number" id="frequencyInput" value="262"></div>
+            <div id="statusTag" class="status-indicator status-off">Enter 播放頻率</div>
+        </div>
+    </div>
+
+    <div id="kbd">
+        <div id="k0" class="note white" data-note="262">A</div>
+        <div id="k1" class="note black" data-note="277">W</div>
+        <div id="k2" class="note white" data-note="294">S</div>
+        <div id="k3" class="note black" data-note="311">E</div>
+        <div id="k4" class="note white" data-note="330">D</div>
+        <div id="k5" class="note white" data-note="349">F</div>
+        <div id="k6" class="note black" data-note="370">T</div>
+        <div id="k7" class="note white" data-note="392">G</div>
+        <div id="k8" class="note black" data-note="415">Y</div>
+        <div id="k9" class="note white" data-note="440">H</div>
+        <div id="k10" class="note black" data-note="466">U</div>
+        <div id="k11" class="note white" data-note="494">J</div>
+        <div id="k12" class="note white" data-note="524">K</div>
+    </div>
+
+    <div class="visual-container">
+        <canvas id="visualizer"></canvas>
+    </div>
+
+    <script>
+        let audioCtx, mainGain, isPlaying = false, currentWave = 'sine';
+        let activeFrequencies = []; 
+        const activeOscillators = {};
+        let continuousNodes = null, continuousFreq = 0;
+
+        const keyMap = {'a':'k0','w':'k1','s':'k2','e':'k3','d':'k4','f':'k5','t':'k6','g':'k7','y':'k8','h':'k9','u':'k10','j':'k11','k':'k12'};
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                mainGain = audioCtx.createGain();
+                mainGain.connect(audioCtx.destination);
+                draw();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // 滑鼠點擊功能實作
+        document.querySelectorAll('.note').forEach(el => {
+            el.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // 防止選取文字
+                initAudio();
+                playNote(el.id);
+            });
+            el.addEventListener('mouseup', () => stopNote(el.id));
+            el.addEventListener('mouseleave', () => stopNote(el.id));
+        });
+
+        // 原有的 Enter 鍵與鍵盤邏輯
+        const freqInput = document.getElementById('frequencyInput');
+        freqInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { initAudio(); toggleContinuousSound(); }
+        });
+
+        function toggleContinuousSound() {
+            const statusTag = document.getElementById('statusTag');
+            if (!isPlaying) {
+                isPlaying = true;
+                statusTag.innerText = "正在播放頻率";
+                statusTag.className = "status-indicator status-on";
+                continuousFreq = parseFloat(freqInput.value) || 262;
+                activeFrequencies.push(continuousFreq);
+                continuousNodes = createOscillatorTrio(continuousFreq);
+            } else {
+                isPlaying = false;
+                statusTag.innerText = "Enter 播放頻率";
+                statusTag.className = "status-indicator status-off";
+                activeFrequencies = activeFrequencies.filter(f => f !== continuousFreq);
+                stopContinuousSound();
+            }
+        }
+
+        function stopContinuousSound() {
+            if (continuousNodes) {
+                continuousNodes.forEach(node => {
+                    node.g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                    setTimeout(() => node.osc.stop(), 150);
+                });
+                continuousNodes = null;
+            }
+        }
+
+        function getGains() {
+            return [parseFloat(document.getElementById('pitch').value), 
+                    parseFloat(document.getElementById('overTone1').value), 
+                    parseFloat(document.getElementById('overTone2').value)];
+        }
+
+        function createOscillatorTrio(freq) {
+            const nodes = [];
+            const gs = getGains();
+            for (let i = 0; i < 3; i++) {
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                osc.type = currentWave;
+                osc.frequency.value = freq * (i + 1);
+                g.gain.setValueAtTime(0, audioCtx.currentTime);
+                g.gain.linearRampToValueAtTime(gs[i] * 0.2, audioCtx.currentTime + 0.05);
+                osc.connect(g); g.connect(mainGain);
+                osc.start();
+                nodes.push({ osc, g });
+            }
+            return nodes;
+        }
+
+        function playNote(id) {
+            if (!audioCtx || activeOscillators[id]) return;
+            const element = document.getElementById(id);
+            const freq = parseFloat(element.getAttribute('data-note'));
+            element.classList.add(element.classList.contains('white') ? 'active-white' : 'active-black');
+            activeFrequencies.push(freq);
+            activeOscillators[id] = { freq: freq, nodes: createOscillatorTrio(freq) };
+        }
+
+        function stopNote(id) {
+            if (!activeOscillators[id]) return;
+            const element = document.getElementById(id);
+            element.classList.remove('active-white', 'active-black');
+            const freq = activeOscillators[id].freq;
+            activeFrequencies = activeFrequencies.filter(f => f !== freq);
+            activeOscillators[id].nodes.forEach(node => {
+                node.g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                setTimeout(() => node.osc.stop(), 150);
+            });
+            delete activeOscillators[id];
+        }
+
+        function setWave(type) {
+            currentWave = type;
+            document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + type).classList.add('active');
+            if (continuousNodes) continuousNodes.forEach(n => n.osc.type = type);
+            for (let id in activeOscillators) activeOscillators[id].nodes.forEach(n => n.osc.type = type);
+        }
+
+        window.addEventListener('keydown', (e) => { 
+            if (e.target.id === 'frequencyInput') return; 
+            const id = keyMap[e.key.toLowerCase()]; 
+            if (id) { initAudio(); playNote(id); }
+        });
+        window.addEventListener('keyup', (e) => { 
+            const id = keyMap[e.key.toLowerCase()]; 
+            if (id) stopNote(id); 
+        });
+
+        // --- 數學繪圖邏輯 ---
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+
+        function getMathWaveValue(type, freq, t) {
+            const phase = freq * t;
+            switch(type) {
+                case 'sine': return Math.sin(2 * Math.PI * phase);
+                case 'square': return Math.sin(2 * Math.PI * phase) > 0 ? 1 : -1;
+                case 'sawtooth': return 2 * (phase - Math.floor(phase + 0.5));
+                case 'triangle': return 2 * Math.abs(2 * (phase - Math.floor(phase + 0.5))) - 1;
+                default: return 0;
+            }
+        }
+
+        function draw() {
+            requestAnimationFrame(draw);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#1e272e';
+            for(let i=0; i<canvas.width; i+=50) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+            for(let i=0; i<canvas.height; i+=50) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+
+            if (activeFrequencies.length === 0) return;
+
+            ctx.lineWidth = 3; ctx.strokeStyle = '#00d8d6'; ctx.beginPath();
+            const gs = getGains();
+            const timeWindow = parseFloat(document.getElementById('zoomX').value);
+            const ampZoom = parseFloat(document.getElementById('zoomY').value);
+
+            for (let x = 0; x < canvas.width; x++) {
+                const t = (x / canvas.width) * timeWindow;
+                let ySum = 0;
+                activeFrequencies.forEach(freq => {
+                    for(let i = 0; i < 3; i++) ySum += gs[i] * getMathWaveValue(currentWave, freq * (i + 1), t);
+                });
+
+                const totalGain = (gs[0] + gs[1] + gs[2]) * activeFrequencies.length || 1;
+                const finalY = (ySum / totalGain) * ampZoom;
+                const canvasY = (canvas.height / 2) - (finalY * canvas.height / 2.5);
+
+                if (x === 0) ctx.moveTo(x, canvasY); else ctx.lineTo(x, canvasY);
+            }
+            ctx.stroke();
+        }
+
+        function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = 300; }
+        window.onresize = resize; resize();
+    </script>
+</body>
+</html>

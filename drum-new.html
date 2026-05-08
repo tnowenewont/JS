@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>高頻率鼓點節奏器 (清晰聽覺優化版)</title>
+    <style>
+        .myfont1 {
+            font-family: "Times New Roman", Times, serif;
+            font-size: 35px;
+            font-weight: 500;
+            text-align: center;
+            color: #FFFF00;
+            margin-top: 50px;
+        }
+        input[type="button"], input[type="number"] { 
+            font-size: 20px; 
+            margin: 10px; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+        }
+        input[type="range"] {
+            vertical-align: middle;
+            width: 150px;
+        }
+        .control-panel { 
+            background-color: #444; 
+            padding: 20px; 
+            border-radius: 15px; 
+            display: inline-block; 
+            line-height: 2.5;
+        }
+    </style>
+</head>
+<body style="background-color:dimgray; text-align: center;">
+
+    <div class="myfont1">
+        <div class="control-panel">
+            <input type="button" value="開始" onclick="startMetronome()"/>
+            <input type="button" value="停止" onclick="stopMetronome()"/>
+            <br>
+            敲擊頻率：每秒 <input type="number" id="Frequency" value="1" step="1" min="1" onchange="updateFrequency()"> 次
+            <br>
+            音量大小：<input type="range" id="Volume" min="0" max="1" step="0.01" value="0.8" oninput="updateVolume()">
+        </div>
+    </div>
+
+    <script>
+        let audioCtx;
+        let nextTickTime = 0;
+        let timerID;
+        let frequency = 1;
+        
+        let masterVolume = 0.8;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(time) {
+            if (masterVolume <= 0) return;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // 1. 設定為三角波，讓聲音更清晰有穿透力
+            osc.type = 'triangle';
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            // 2. 提高起始音頻到 300Hz，並且最低只降到人耳敏感的 40Hz
+            osc.frequency.setValueAtTime(300, time);
+            osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+
+            gainNode.gain.setValueAtTime(masterVolume, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+
+            osc.start(time);
+            osc.stop(time + 0.1);
+        }
+
+        function scheduler() {
+            while (nextTickTime < audioCtx.currentTime + 0.1) {
+                playSound(nextTickTime);
+                nextTickTime += (1.0 / frequency);
+            }
+            timerID = requestAnimationFrame(scheduler);
+        }
+
+        async function startMetronome() {
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            
+            stopMetronome(); 
+            nextTickTime = audioCtx.currentTime;
+            scheduler();
+        }
+
+        function stopMetronome() {
+            cancelAnimationFrame(timerID);
+        }
+
+        function updateFrequency() {
+            const inputVal = parseFloat(document.getElementById("Frequency").value);
+            if (inputVal > 0) {
+                frequency = inputVal;
+            }
+        }
+
+        function updateVolume() {
+            const volVal = parseFloat(document.getElementById("Volume").value);
+            masterVolume = volVal;
+        }
+    </script>
+</body>
+</html>
