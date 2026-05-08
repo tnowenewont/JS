@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>3D 發電機物理模擬器 - 完整修復版</title>
+    <style>
+        body { background-color: #222; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden;}
+        canvas { background-color: #333; border: 2px solid #555; cursor: move; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .controls { margin-top: 20px; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center; width: 500px; }
+        button { padding: 8px 15px; margin: 0 5px; cursor: pointer; background: #444; color: white; border: 1px solid #666; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #666; border-color: #888; }
+        .slider-container { margin-top: 15px; }
+        input[type=range] { width: 250px; vertical-align: middle; cursor: pointer; }
+        #speedValue { font-weight: bold; color: #0F0; margin-left: 10px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="generatorCanvas" width="800" height="600"></canvas>
+
+    <div class="controls">
+        <div>
+            <button id="btnBack">⏮ 往後步進</button>
+            <button id="btnPlay">⏯ 播放 / 暫停</button>
+            <button id="btnForward">⏭ 往前步進</button>
+        </div>
+        <div class="slider-container">
+            旋轉速度：<input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1">
+            <span id="speedValue">1.0x</span>
+        </div>
+        <div style="font-size: 13px; color: #ccc; margin-top: 10px;">
+            🖱️ <b>提示：</b>在畫布上<b>按住滑鼠左鍵拖曳</b>可改變 3D 視角
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('generatorCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- 初始點位資料 ---
+const rawPoints = [
+    -10, 0, -220, -10, 0, -200, -100, 0, -200, -100, 0, 200,
+    100, 0, 200, 100, 0, -200, 10, 0, -200, 10, 0, -220,
+    0, 0, -220, 0, 0, 200
+];
+
+let x = [], y = [], z = [];
+let vx = 0, vy = -150, vz = -600; // 視點座標
+let x0 = canvas.width / 2, y0 = canvas.height / 2 + 50;
+let totalAngle = 0;           
+let baseW = Math.PI / 300;    
+let isPaused = true;
+let speedMultiplier = 1.0;
+let pressedX, pressedY; // 記錄滑鼠點擊位置
+
+let voltageBuffer = []; 
+const maxBufferLength = 1500; 
+
+function initPoints() {
+    x = []; y = []; z = [];
+    for (let i = 0; i < rawPoints.length; i += 3) {
+        x.push(rawPoints[i]); y.push(rawPoints[i+1]); z.push(rawPoints[i+2]);
+    }
+}
+
+function rotatePoint(px, py, pz, angle) {
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    return { rx: px * cosA - py * sinA, ry: px * sinA + py * cosA, rz: pz };
+}
+
+function project(px, py, pz) {
+    const factor = pz - vz;
+    if (Math.abs(factor) < 0.1) return { x: x0, y: y0 }; 
+    let sx = (px - (px - vx) * pz / factor) + x0;
+    let sy = (py - (py - vy) * pz / factor) + y0;
+    return { x: sx, y: sy };
+}
+
+function drawArrowHead(ctx, fromX, fromY, toX, toY, color) {
+    const headLength = 12; 
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+}
+
+function drawBox(tx, ty, tz, width, height, depth, color) {
+    const wB = width / 2, hB = height / 2, dB = depth / 2;
+    const vertices = [
+        {x: -wB, y: -hB, z: -dB}, {x: wB, y: -hB, z: -dB}, {x: wB, y: hB, z: -dB}, {x: -wB, y: hB, z: -dB},
+        {x: -wB, y: -hB, z: dB},  {x: wB, y: -hB, z: dB},  {x: wB, y: hB, z: dB},  {x: -wB, y: hB, z: dB}
+    ].map(p => project(p.x + tx, p.y + ty, p.z + tz));
+    const faces = [[0,1,2,3], [4,5,6,7], [0,1,5,4], [2,3,7,6], [0,4,7,3], [1,5,6,2]];
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "rgba(0,0,0,0.2)";
+    faces.forEach(face => {
+        ctx.beginPath();
+        ctx.moveTo(vertices[face[0]].x, vertices[face[0]].y);
+        face.forEach(idx => ctx.lineTo(vertices[idx].x, vertices[idx].y));
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+}
+
+function draw() {
+    ctx.fillStyle = "#333";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. 磁鐵與磁力線
+    drawBox(-250, 0, 0, 60, 300, 400, "#ff4444"); 
+    drawBox(250, 0, 0, 60, 300, 400, "#4444ff");  
+    
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    for (let kz = -2; kz <= 2; kz++) {
+        for (let ky = -2; ky <= 2; ky++) {
+            let oz = kz * 100, oy = ky * 60;
+            let pS = project(-220, oy, oz), pE = project(220, oy, oz);
+            ctx.beginPath(); ctx.moveTo(pS.x, pS.y); ctx.lineTo(pE.x, pE.y); ctx.stroke();
+            let vUp = project(200, oy+5, oz), vDown = project(200, oy-5, oz);
+            ctx.beginPath(); ctx.moveTo(pE.x, pE.y); ctx.lineTo(vUp.x, vUp.y); ctx.lineTo(vDown.x, vDown.y); ctx.closePath(); ctx.fill();
+        }
+    }
+
+    // 2. 電壓監視螢幕
+    ctx.fillStyle = "black";
+    ctx.fillRect(250, 20, 300, 150);
+    ctx.strokeStyle = "#0F0";
+    ctx.strokeRect(250, 20, 300, 150);
+    ctx.beginPath();
+    ctx.setLineDash([5, 5]);
+    ctx.moveTo(250, 95); ctx.lineTo(550, 95); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#0F0";
+    ctx.font = "12px Monospace";
+    ctx.fillText(`PHASE: COSINE | V_max: ${speedMultiplier}x`, 265, 40);
+
+    // 3. 更新線圈旋轉
+    const cosA = Math.cos(totalAngle);
+    const sinA = Math.sin(totalAngle);
+    for (let i = 0; i < x.length; i++) {
+        const ox = rawPoints[i*3], oy = rawPoints[i*3+1];
+        x[i] = ox * cosA - oy * sinA;
+        y[i] = ox * sinA + oy * cosA;
+        z[i] = rawPoints[i*3+2];
+    }
+
+    // 4. 畫線圈
+    ctx.lineWidth = 3; ctx.strokeStyle = "gold";
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+        let p = project(x[i], y[i], z[i]);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    // 5. 繪製電流箭頭
+    const currentI = Math.cos(totalAngle) * speedMultiplier; 
+    if (Math.abs(currentI) > 0.01 && totalAngle !== 0) {
+        const arrowData = [
+            { cx: -100, color: "red", vz: 200 },
+            { cx: 100, color: "black", vz: -200 }
+        ];
+        ctx.lineWidth = 4;
+        arrowData.forEach(side => {
+            let zLen = side.vz * (currentI / Math.max(speedMultiplier, 1)) * Math.min(Math.abs(currentI), 1);
+            let p1 = rotatePoint(side.cx, 0, -zLen, totalAngle);
+            let p2 = rotatePoint(side.cx, 0, zLen, totalAngle);
+            let sP = project(p1.rx, p1.ry, p1.rz);
+            let eP = project(p2.rx, p2.ry, p2.rz);
+            
+            ctx.strokeStyle = side.color;
+            ctx.beginPath(); ctx.moveTo(sP.x, sP.y); ctx.lineTo(eP.x, eP.y); ctx.stroke();
+            drawArrowHead(ctx, sP.x, sP.y, eP.x, eP.y, side.color);
+        });
+    }
+
+    // 6. 畫波形
+    ctx.fillStyle = "red";
+    for (let i = 0; i < voltageBuffer.length; i++) {
+        let posX = 540 - (voltageBuffer.length - 1 - i) * 0.19; 
+        let waveY = 95 + (40 * voltageBuffer[i] / 2); 
+        if (posX >= 255) {
+            ctx.beginPath(); ctx.arc(posX, waveY, 1.2, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    if (!isPaused) {
+        totalAngle += baseW * speedMultiplier;
+        voltageBuffer.push(Math.cos(totalAngle) * speedMultiplier);
+        if (voltageBuffer.length > maxBufferLength) voltageBuffer.shift();
+    }
+    requestAnimationFrame(draw);
+}
+
+// --- 【核心修復】滑鼠拖曳事件 ---
+canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    pressedX = e.clientX - rect.left;
+    pressedY = e.clientY - rect.top;
+};
+
+canvas.onmousemove = (e) => {
+    if (e.buttons === 1) { // 只有在按住左鍵時觸發
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        
+        // 更新視點偏移量
+        vx -= (mx - pressedX);
+        vy -= (my - pressedY);
+        
+        pressedX = mx;
+        pressedY = my;
+    }
+};
+
+// --- 控制按鈕與滑桿 ---
+document.getElementById('speedSlider').oninput = function() {
+    speedMultiplier = parseFloat(this.value);
+    document.getElementById('speedValue').innerText = speedMultiplier.toFixed(1) + "x";
+};
+document.getElementById('btnPlay').onclick = () => isPaused = !isPaused;
+document.getElementById('btnForward').onclick = () => {
+    totalAngle += baseW * 15;
+    voltageBuffer.push(Math.cos(totalAngle) * speedMultiplier);
+};
+document.getElementById('btnBack').onclick = () => {
+    totalAngle -= baseW * 15;
+    voltageBuffer.pop();
+};
+
+initPoints();
+draw();
+</script>
+</body>
+</html>
