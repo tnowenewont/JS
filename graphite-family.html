@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>3D 分子模型 - 石墨縮小 & 鍵結加粗</title>
+  <title>3D 分子模型 - 拖曳方向修正</title>
   <style>
     body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
     .ui { position: absolute; top: 20px; left: 20px; background: rgba(30, 30, 30, 0.9);
@@ -20,7 +20,7 @@
       <option value="graphite">石墨 (Graphite)</option>
       <option value="diamond">鑽石 (Diamond)</option>
     </select>
-    <div class="hint">拖曳：旋轉 | 滾輪：縮放<br>石墨原子已縮小至 60% · 鍵結加粗 2 倍</div>
+    <div class="hint">拖曳：旋轉 | 滾輪：縮放<br>拖曳方向已修正</div>
   </div>
   <canvas id="stage"></canvas>
 
@@ -52,8 +52,9 @@
         if (!isDragging) return;
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
-        angleY += dx * 0.01;
-        angleX -= dy * 0.01;      // 上下拖曳對應 X 軸旋轉
+        // 修正拖曳方向：向右拖曳 → 模型向右旋轉 (繞 Y 軸負方向)；向下拖曳 → 模型向下旋轉 (繞 X 軸正方向)
+        angleY -= dx * 0.01;
+        angleX += dy * 0.01;
         lastX = e.clientX;
         lastY = e.clientY;
       };
