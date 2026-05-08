@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>等臂天秤互動學習工具 - 最終精確版</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        
+        /* 天秤主體 */
+        .stage { position: relative; width: 700px; height: 450px; background: white; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .base { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 250px; height: 30px; background: #2c3e50; border-radius: 5px; }
+        .pillar { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 28px; height: 220px; background: #95a5a6; border-radius: 2px; }
+
+        /* 橫桿 */
+        #beam {
+            position: absolute; top: 180px; left: 100px; width: 500px; height: 14px;
+            background: #bdc3c7; border-radius: 7px; transform-origin: center;
+            transition: transform 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+            display: flex; align-items: center; justify-content: center; border: 1px solid #7f8c8d;
+        }
+
+        /* 秤盤 */
+        .pan-container { position: absolute; top: 7px; width: 2px; height: 160px; background: #333; transform-origin: top center; transition: transform 0.8s; }
+        .pan-left { left: 0; }
+        .pan-right { right: 0; }
+
+        .dish {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 160px; height: 25px; background: #dfe6e9; border: 2px solid #b2bec3; border-radius: 0 0 80px 80px;
+            display: flex; justify-content: center; align-items: flex-end; padding: 5px; gap: 4px; flex-wrap: wrap-reverse;
+        }
+
+        /* --- 視覺圖樣 --- */
+        .target-object {
+            background: #d35400; border: 2px solid #a04000; border-radius: 5px;
+            box-shadow: inset -3px -3px rgba(0,0,0,0.2); transition: 0.3s;
+        }
+
+        .weight-visual {
+            background: #f1c40f; border: 1px solid #f39c12; border-radius: 3px 3px 1px 1px;
+            position: relative; box-shadow: inset -2px -2px rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; color: #7f4f24;
+        }
+        .weight-visual::before {
+            content: ""; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+            width: 40%; height: 5px; background: #f39c12; border-radius: 50% 50% 0 0;
+        }
+
+        /* 騎碼控制區 */
+        .rider-container { position: absolute; top: -45px; width: 90%; } /* 稍微往上移一點避開重疊 */
+        input[type=range] { width: 100%; cursor: ew-resize; }
+
+        /* 控制面板 */
+        .controls { padding: 25px; background: #fff; border-radius: 12px; width: 650px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .weight-tag { background: #3498db; color: white; padding: 5px 12px; border-radius: 20px; margin: 4px; display: inline-block; cursor: pointer; transition: 0.2s; }
+        .weight-tag:hover { background: #e74c3c; }
+        button { padding: 8px 12px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; background: white; }
+        button:hover { background: #eee; }
+    </style>
+</head>
+<body>
+
+    <h1>等臂天秤互動教學系統</h1>
+
+    <div class="stage">
+        <div class="pillar"></div>
+        <div class="base"></div>
+        <div id="beam">
+            <div class="rider-container">
+                <input type="range" id="rider" min="0" max="10" step="0.1" value="0">
+                <div style="text-align: center; font-size: 18px; font-weight: bold; color: #2c3e50; margin-top: 5px;">
+                    騎碼位置: <span id="riderVal">0</span> g
+                </div>
+            </div>
+            <div id="leftPan" class="pan-container pan-left">
+                <div class="dish" id="leftDish"></div>
+            </div>
+            <div id="rightPan" class="pan-container pan-right">
+                <div class="dish" id="rightDish"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div>
+            <strong>1. 設定左側待測物重量 (g)：</strong>
+            <input type="number" id="targetInput" value="18.5" step="0.1" style="width: 60px;">
+            <button onclick="resetApp()">重新放置</button>
+        </div>
+        <hr>
+        <div>
+            <strong>2. 放置右側砝碼：</strong>
+            <button onclick="addWeight(10)">10g</button>
+            <button onclick="addWeight(5)">5g</button>
+            <button onclick="addWeight(1)">1g</button>
+            <button onclick="addWeight(0.5)">0.5g</button>
+            <button onclick="addWeight(0.1)">0.1g</button>
+            <button onclick="clearWeights()" style="color:red;">全部清空</button>
+        </div>
+        <div style="margin-top:10px; font-size:14px;">點擊下方標籤可拿掉法碼：<div id="tagList"></div></div>
+        <hr>
+        <div id="status" style="font-weight: bold; font-size: 20px; text-align: center; color: #7f8c8d;">準備就緒</div>
+    </div>
+
+    <script>
+        let targetWeight = 18.5;
+        let currentWeights = [];
+        let riderValue = 0;
+
+        function updateScale() {
+            const totalRight = currentWeights.reduce((a, b) => a + b, 0) + riderValue;
+            const diff = totalRight - targetWeight;
+
+            let angle = diff * 2.5;
+            angle = Math.max(-20, Math.min(20, angle));
+            document.getElementById('beam').style.transform = `rotate(${angle}deg)`;
+            document.getElementById('leftPan').style.transform = `rotate(${-angle}deg)`;
+            document.getElementById('rightPan').style.transform = `rotate(${-angle}deg)`;
+
+            const leftDish = document.getElementById('leftDish');
+            leftDish.innerHTML = "";
+            const objSize = 20 + (targetWeight * 1.5);
+            const obj = document.createElement('div');
+            obj.className = 'target-object';
+            obj.style.width = `${Math.min(objSize, 60)}px`;
+            obj.style.height = `${Math.min(objSize, 60)}px`;
+            leftDish.appendChild(obj);
+
+            const rightDish = document.getElementById('rightDish');
+            rightDish.innerHTML = "";
+            currentWeights.sort((a, b) => b - a).forEach(w => {
+                const wDiv = document.createElement('div');
+                wDiv.className = 'weight-visual';
+                const size = 15 + (w * 2.5);
+                wDiv.style.width = `${size}px`;
+                wDiv.style.height = `${size}px`;
+                wDiv.innerText = w >= 1 ? w : "";
+                rightDish.appendChild(wDiv);
+            });
+
+            document.getElementById('riderVal').innerText = riderValue.toFixed(1);
+            renderTags();
+
+            const status = document.getElementById('status');
+            if (Math.abs(diff) < 0.05) { status.innerText = "✨ 兩邊相等，平衡了！"; status.style.color = "green"; }
+            else if (diff > 0) { status.innerText = "右側過重"; status.style.color = "red"; }
+            else { status.innerText = "右側過輕"; status.style.color = "orange"; }
+        }
+
+        function renderTags() {
+            const tagList = document.getElementById('tagList');
+            tagList.innerHTML = currentWeights.length === 0 ? "無" : "";
+            currentWeights.forEach((w, i) => {
+                const span = document.createElement('span');
+                span.className = 'weight-tag';
+                span.innerText = `${w}g ✕`;
+                span.onclick = () => { currentWeights.splice(i, 1); updateScale(); };
+                tagList.appendChild(span);
+            });
+        }
+
+        function addWeight(w) { currentWeights.push(w); updateScale(); }
+        function clearWeights() { currentWeights = []; updateScale(); }
+        function resetApp() {
+            targetWeight = parseFloat(document.getElementById('targetInput').value) || 0;
+            clearWeights();
+            document.getElementById('rider').value = 0;
+            riderValue = 0;
+            updateScale();
+        }
+
+        document.getElementById('rider').addEventListener('input', (e) => {
+            riderValue = parseFloat(e.target.value);
+            updateScale();
+        });
+
+        resetApp();
+    </script>
+</body>
+</html>
