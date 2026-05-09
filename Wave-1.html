@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+    
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Wave</title>
+        
+        <style>
+            p{color:yellow;
+                font-size: 20px}
+        </style>
+       
+    </head>
+    
+    
+    
+    <body style="background-color:dimgray;">
+        <canvas id="cv1" style="border:1px solid  #999999"  >  abc </canvas>
+        
+        <div>  <p>
+		大小<input type="number" id="Radius"　size="4" value="15" onchange="paint()">    
+                個數<input type="number" id="NumberOfBalls"　size="4" value="1" onchange="paint()">
+                振幅<input type="number" id="Ａmplitude" size="4" value="100" onchange="changeA()">
+                波長<input type="number" id="Lumbda" size="4" value="500" onchange=" changeL()">
+                頻率<input type="number" id="Frequency" size="4" value="0.5" onchange="changeF()">
+		</p><p>
+                <button onclick="getData()"> 確定</button>
+		<input type="button" value="Refresh" onclick="refresh()"/>
+		<input type="button" value="<<" onclick="backward()"/> 		
+		<input type="button" id="paulse" value="開始" onclick="playOrPause()"/>   
+		<input type="button" value=">>" onclick="forward()"/> 
+		<input type="button" id="butMode" value="橫波" onclick="selMode()"/> 
+        <input type="button" id="butMatt" value="不同材質" onclick="selMatt()"/>
+             </p><p id="demo">Demo</p>
+	     
+        </div>
+        
+        
+
+        
+        
+        
+        <script>
+        var N,A,L,F,d;
+        var V=250;//V＝Ｌ*F 速度
+	    var r=15;
+        var matt=false;
+	    var ifPlay=false;
+	    var mode=0; 		//橫波
+	    var t=0;			//時間
+	    var timer;
+	   
+            
+        var c = document.getElementById("cv1");
+        var ctx = c.getContext("2d");
+	    var playButton=document.getElementById("paulse");
+	    var playModeButton= document.getElementById("butMode");
+        var material=document.getElementById("butMatt");
+            c.width=window.innerWidth-30;
+            c.height=window.innerHeight-140;
+            getData();
+	        paint();
+            
+
+	   	
+
+        function selMatt(){ //設定材質是否相同
+            matt=(!matt);
+            if(matt==false){
+                document.getElementById("butMatt").value= "不同材質";
+            }
+            if(matt==true){
+                document.getElementById("butMatt").value= "相同材質";
+            }    
+            
+            
+        }  
+
+	function changeA(){
+                var tA= parseFloat( document.getElementById("Ａmplitude").value );      
+		if(mode==0){ A=tA;
+			    document.getElementById("Ａmplitude").value=A;}
+		else{                
+			if(2*Math.PI*d/L<Math.asin(d/tA)){
+			A=tA;
+	                document.getElementById("Ａmplitude").value=A;}
+			else{A=d/Math.sin(2*Math.PI*d/L); 
+			     document.getElementById("Ａmplitude").value=A;}
+		}
+            
+		
+            paint();
+        }
+
+  
+        function changeL(){
+            L= parseFloat( document.getElementById("Lumbda").value );
+            if(matt==true){
+                F=V/L;                document.getElementById("Frequency").value=F;
+            }
+
+            paint();
+        }
+        function changeF(){
+            F= parseFloat( document.getElementById("Frequency").value );
+            if(matt==true){
+                L=V/F;
+                document.getElementById("Lumbda").value=L;
+            }
+            paint();
+        }   
+
+	   function repeat(){
+	  	 timer=setInterval(function(){ t+=100;		 		document.getElementById("demo").innerHTML=d ;
+						paint();       
+				  },100)		
+	   }
+
+	    function playOrPause(){
+			   //repeat();		
+			ifPlay=(!ifPlay);
+			if(ifPlay==true){
+			   playButton.value= "暫停" ;
+			   repeat();
+	   		 }else{
+			   playButton.value=  "開始" ;
+			   clearInterval(timer);	
+			}
+			
+			
+		}
+
+	    function refresh(){t=0; paint();}
+
+	    function forward(){t+=100; paint(); getData();}
+	    function backward(){t-=100; paint(); getData();}
+	    function selMode(){
+			mode= (mode>0) ? 0:1 ;
+			playModeButton.value= (mode>0) ? "縱波" : "橫波";
+		}
+               
+            function Dash(x,y,r) {     //縱波用線段
+                this.x = x;
+                this.y = y;
+                this.r = r;
+                // I've added the drawing code to the actual circle
+                // they can draw themselves.
+                this.draw = function(context){
+                    context.strokeStyle = "#FF0000";
+		    context.lineWidth = 2;
+                    context.beginPath();
+                    // Staring point 
+   		context.moveTo(x,y-r);
+  		// End point
+  		context.lineTo(x,y+r);
+  		// Make the line visible
+  		context.stroke();
+                    }
+            }
+
+
+	function Circle(x,y,r) {
+                this.x = x;
+                this.y = y;
+                this.r = r;
+                // I've added the drawing code to the actual circle
+                // they can draw themselves.
+                this.draw = function(context){
+                    context.fillStyle = "#FF0000";
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.r, 0, Math.PI*2, true);
+                    context.closePath();
+                    context.fill();
+                    }
+            }
+            
+
+            
+            
+            function getData(){
+              N= parseFloat( document.getElementById("NumberOfBalls").value );       
+              A= parseFloat( document.getElementById("Ａmplitude").value );
+              L= parseFloat( document.getElementById("Lumbda").value );
+              F= parseFloat( document.getElementById("Frequency").value );
+              r= parseFloat( document.getElementById("Radius").value );
+              d= c.width/(N+1); y0= c.height/2;
+
+            
+              
+              document.getElementById("demo").innerHTML = d;         
+            }
+            
+            function paint(){
+                getData();		//獲取參數
+                ctx.clearRect(0,0,c.width,c.height);
+                // Create array and fill it with Circles
+                var circleArray = []
+		
+		if(mode<1){
+                	for (var i=0; i<N; i++){
+                    		var radX = (i+1)*d;
+                    		var radY = (radX<=L*F*t/1000) ? (y0+A*Math.sin(Math.PI*2*(radX/L - F*t/1000))):(y0) ;		    
+                    		var radR = r;
+		                    circleArray.push(new Circle(radX, radY, radR));
+                	}
+		}else{
+			for (var i=0; i<N; i++){
+				//if( A> ((d-r)/2) ) {A= ((d-r)/2);}
+				//if(A>d){A=d;}				
+                    		var radX = ((i+1)*d< L*F*t/1000) ? ((i+1)*d - A*Math.sin(Math.PI*2*((i+1)*d/L - F*t/1000))):((i+1)*d) ;
+				
+                    		var radY = y0 ;		    
+                    		var radR = r;
+		                    circleArray.push(new Dash(radX, radY, radR));//縱波
+			}
+		}
+                //畫出圓陣列
+                for(var i=0; i<N; i++) {
+                   circleArray[i].draw(ctx);
+                }
+				
+	     }
+
+	    
+
+		
+	   
+            
+
+        </script>
+        
+
+        
+    </body>
+</html>
+<!--
+
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[     CODE THE WEB     ]:::::]
+    [:::::[  http://brackets.io  ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [:::::[                      ]:::::]
+    [::::::[[[[[[[:      :]]]]]]]::::::]
+    [::::::::::::::      ::::::::::::::]
+    [::::::::::::::      ::::::::::::::]
+    [[[[[[[[[[[[[[[      ]]]]]]]]]]]]]]]
+
+-->
