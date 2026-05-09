@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>光的三原色</title>
+    <style type="text/css">
+        canvas{border:1px solid #ccc;}
+        div { float:left;｝
+        /*＃input｛float:left;｝*/
+        
+    </style>
+</head>
+<body id="page" bgcolor="#000000">
+    <div>
+         <div id="slideContainer">            
+                <input type="range" min="0" max="255" step="1" value="100" class="slider" id="r"  oninput="slideChange()" style="width: 600px"> <font color="red" size="5"> R: <span id="labelR"></span></font><br>
+                <input type="range" min="0" max="255" step="1" value="100" class="slider" id="g"  oninput="slideChange()" style="width: 600px"> <font color="green" size="5"> G:<span id="labelG"></span></font><br>
+                <input type="range" min="0" max="255" step="1" value="100" class="slider" id="b"  oninput="slideChange()" style="width: 600px"> <font color="blue" size="5"> B:<span id="labelB"></span></font><br>
+        </div>
+        <div　id="input">
+            <font color="white" size="5">Radius:</font><input type="number" id="radius" value="150">
+        </div>
+
+    </div>
+
+    <canvas id="main"></canvas>
+    
+
+
+
+
+
+
+
+<script type="text/javascript">
+var W=window.innerWidth, H=window.innerHeight;
+var myCanvas = document.getElementById("main");
+var ctx = myCanvas.getContext("2d");
+
+myCanvas.width=W; myCanvas.height=H;
+var sliderR=document.getElementById("r");
+var sliderG=document.getElementById("g");
+var sliderB=document.getElementById("b");
+var radius=document.getElementById("radius");    
+var rValue=parseInt(sliderR.value);
+var gValue=parseInt(sliderG.value);
+var bValue=parseInt(sliderB.value);
+var showR=document.getElementById("labelR");
+var showG=document.getElementById("labelG");
+var showB=document.getElementById("labelB");
+
+    
+var rs="",gs="",bs="";
+var cr=null,cg=null,cb=null;
+var selR=false,selG=false,selB=false;
+var x0,y0; 
+var rx=W/3,ry=H/3,gx=W*2/3,gy=H/3,bx=W/2,by=H*3/4,R=150;
+    
+    
+    
+    
+showR.innerHTML=rValue;
+showG.innerHTML=gValue;
+showB.innerHTML=bValue;    
+ctx.globalCompositeOperation ="lighter";
+rs="rgb("+rValue+",0,0)";
+cr=new Circle(rx,ry,R,rs);
+cr.draw(ctx);   
+gs="rgb(0,"+gValue+",0)";
+cg=new Circle(gx,gy,R,gs);
+cg.draw(ctx);
+bs="rgb(0,0,"+bValue+")";
+cb=new Circle(bx,by,R,bs);
+cb.draw(ctx);
+    
+    
+window.onmousedown=function(e){
+    var x = e.offsetX, y =e.offsetY;
+    //var x=e.clientX, y=e.clientY;
+
+    x0=x,y0=y;      //記錄滑鼠初始位置
+    selR=isInside(x,y,cr);
+    selG=isInside(x,y,cg);
+    selB=isInside(x,y,cb);    
+}
+
+window.onmouseup=function(e){selR=false;selB=false;selG=false;}
+window.onmousemove=function(e){
+    //var x=e.clientX, y=e.clientY;
+    var x = e.offsetX, y =e.offsetY;
+    
+    var dx=x-x0, dy=y-y0;
+    x0=x;y0=y;
+    if(selR){rx+=dx; ry+=dy}
+    if(selG){gx+=dx; gy+=dy}
+    if(selB){bx+=dx; by+=dy}
+    draw();
+}
+
+
+
+radius.onchange=function(){
+    R=radius.value;
+    draw();
+}
+
+function draw(){
+    ctx.fillStyle=document.getElementById("page").bgColor;
+    ctx.globalCompositeOperation ="source-over";
+
+    ctx.fillRect(0,0,W,H);
+    cr=null;cg=null;cb=null;
+     
+    
+    rs="rgb("+rValue+",0,0)";
+    cr=new Circle(rx,ry,R,rs);
+    cr.draw(ctx);
+    ctx.globalCompositeOperation ="lighter";
+    rs="rgb("+rValue+",0,0)";
+    gs="rgb(0,"+gValue+",0)";
+    cg=new Circle(gx,gy,R,gs);
+    cg.draw(ctx);
+    bs="rgb(0,0,"+bValue+")";
+    cb=new Circle(bx,by,R,bs);
+    showR.innerHTML=rValue;
+    cb.draw(ctx);
+    
+}
+    
+
+function isInside(x,y,c){
+    var r=Math.sqrt((x-c.x)*(x-c.x)+(y-c.y)*(y-c.y));
+    if(r<c.r){return true;}else{return false;}
+}
+
+function slideChange(){
+	rValue=parseInt(sliderR.value);
+	gValue=parseInt(sliderG.value);
+	bValue=parseInt(sliderB.value);
+    showR.innerHTML=rValue;
+    showG.innerHTML=gValue;
+    showB.innerHTML=bValue;
+    
+
+    draw();
+
+}
+
+function Circle(x,y,r,color) {
+               this.x = x;
+               this.y = y;
+               this.r = r;
+                // I've added the drawing code to the actual circle
+                // they can draw themselves.
+               this.draw = function(context){
+                    context.fillStyle = color;
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.r, 0, Math.PI*2, true);
+                    context.closePath();
+                    context.fill();
+                    }
+            }   
+
+    
+</script>
+
+</body>
+</html>
+
+ 

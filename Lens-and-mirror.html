@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>透鏡、面鏡　成像性質</title>
+    <style>
+        canvas{
+            border:1px solid #ccc;
+        }
+        
+        
+    </style>
+</head>
+<body id="page" bgcolor="#000000">
+    <div>
+        <input id="increseF" type="button" value="+" onclick="drawP()">
+        <input id="decreseF" type="button" value="-" onclick="drawM()">
+        <input id="lensCave" type="button" value="凹透鏡" >
+        <input id="lensVex" type="button" value="凸透鏡" >
+        <input id="conMirrow" type="button" value="凹、凸面鏡" >
+        <input id="film" type="button" value="底片 or 視網膜" >
+
+    </div>
+
+    <canvas id="main"></canvas>
+    <div id="info"></div>
+    
+
+
+
+
+
+
+
+<script type="text/javascript">
+var mainCanvas =document.getElementById("main");
+var mainTxt= mainCanvas.getContext("2d");
+var W=(window.innerWidth-10),H=(window.innerHeight-10);
+    mainCanvas.width=W;
+	mainCanvas.height=H;
+var info=document.getElementById("info");
+var lensCave=document.getElementById("lensCave");
+var lensVex=document.getElementById("lensVex");
+var conMirrow=document.getElementById("conMirrow");
+var film=document.getElementById("film");  //視網膜
+    
+
+
+var N=10;   //透鏡圓滑度
+var type=1;
+var lensTx=[],lensTy=[],centerX=W/2;
+var conMirrowx=[],conMirrowy=[];
+var arrowx0=[-0.15,0.15,  0.15, 0.3,   0,-0.3,-0.15,-0.15],
+	arrowy0=[0,   0,  0.45,0.45,   1,0.45, 0.45,    0];
+var arrowx=[],arrowy=[],imgX=[],imgY=[],arrowPosition=200;
+var F=150,Rx=50,Ry=100; //透鏡焦距
+var seLens=false,seArrow=false,seConMirrow=false,ifFilm=false;
+var x0,y0;		//滑鼠的座標 
+    
+
+createLens(Rx,Ry);  
+move(lensTx,lensTy,W/2,H/2); 
+poly(lensTx,lensTy,255,255,255,1); 
+createArrow(arrowPosition); 
+createImg();
+marks();
+drawLines();
+    
+
+    
+    
+film.onclick=function(){ifFilm= !(ifFilm);   //控制底片、視網膜顯示與否
+                        mainTxt.fillStyle=document.getElementById("page").bgColor;
+                        mainTxt.fillRect(0,0,W,H);
+                        centerX=(Math.max.apply(null,lensTx)+Math.min.apply(null,lensTx))/2;
+                        createLens(Rx,Ry);
+                        move(lensTx,lensTy,centerX,H/2);
+                        poly(lensTx,lensTy,255,255,255,1);
+                        createArrow(arrowPosition);
+                        createImg();
+                        marks();
+                        drawLines();}    
+    
+    
+lensCave.onclick=function(){
+    type=2;
+    mainTxt.fillStyle=document.getElementById("page").bgColor;
+    mainTxt.fillRect(0,0,W,H);
+    centerX=(Math.max.apply(null,lensTx)+Math.min.apply(null,lensTx))/2;
+    createLens(Rx,Ry);  
+    move(lensTx,lensTy,centerX,H/2); 
+    poly(lensTx,lensTy,255,255,255,1); 
+    createArrow(arrowPosition); 
+    createImg();
+    marks();
+    drawLines();
+}
+
+lensVex.onclick=function(){
+    type=1;
+    mainTxt.fillStyle=document.getElementById("page").bgColor;
+    mainTxt.fillRect(0,0,W,H);
+    centerX=(Math.max.apply(null,lensTx)+Math.min.apply(null,lensTx))/2;
+    createLens(Rx,Ry);  
+    move(lensTx,lensTy,centerX,H/2); 
+    poly(lensTx,lensTy,255,255,255,1); 
+    createArrow(arrowPosition); 
+    createImg();
+    marks();
+    drawLines();
+    
+}
+
+conMirrow.onclick=function(){
+    type=3;
+    mainTxt.fillStyle=document.getElementById("page").bgColor; 
+    mainTxt.fillRect(0,0,W,H);
+    //creatMirrow();
+   // move(conMirrowx,conMirrowy,centerX,H/2);
+   // drawMirrow();
+    draw(centerX);
+    //createArrow(arrowPosition);
+    //marks();
+
+}
+
+
+
+window.onmousedown=function(e){
+    var x = e.offsetX, y =e.offsetY;
+	if(type!=3 && ifInside(lensTx,lensTy,x,y)){
+		seLens=true; x0=x; y0=y;}           // 得到滑鼠的座標 
+	if(ifInside(arrowx,arrowy,x,y)){
+		seArrow=true; x0=x; y0=y;}
+    if(type==3 && ifInside(conMirrowx,conMirrowy,x,y)){
+		seConMirrow=true; x0=x; y0=y;}
+    //info.innerHTML=seArrow+","+y+","+arrowy[1];    
+}
+
+window.onmouseup=function(e){seLens=false;seArrow=false;seConMirrow=false;}
+window.onmousemove=function(e){
+    var x=e.clientX; y =e.clientY;    
+    if(seArrow){
+        mainTxt.fillStyle=document.getElementById("page").bgColor;          
+        mainTxt.fillRect(0,0,W,H);
+        move(arrowx,arrowy,x-x0,0);
+        poly(arrowx,arrowy,255,255,0,1);
+        arrowPosition=arrowx[4];
+        if(type!=3){
+            poly(lensTx,lensTy,255,255,255,1);
+            centerX=(Math.max.apply(null,lensTx)+Math.min.apply(null,lensTx))/2;
+        }else{
+            drawMirrow();
+            centerX=Math.min.apply(null,conMirrowx);
+
+        }
+        marks();        
+        createImg();
+        drawLines();        
+        x0=x;y0=y;
+    }
+    
+    if(seLens){
+        mainTxt.fillStyle=document.getElementById("page").bgColor;          
+        mainTxt.fillRect(0,0,W,H);
+        move(lensTx,lensTy,x-x0,0);
+        poly(lensTx,lensTy,255,255,255,1);
+        centerX=(Math.max.apply(null,lensTx)+Math.min.apply(null,lensTx))/2;
+        poly(arrowx,arrowy,255,255,0,1);
+        createImg();
+        drawLines();        
+        marks(); 
+        x0=x;y0=y;
+    }
+
+    if(seConMirrow){
+        mainTxt.fillStyle=document.getElementById("page").bgColor;          
+        mainTxt.fillRect(0,0,W,H);
+        move(conMirrowx,conMirrowy,x-x0,0);
+        drawMirrow();
+        centerX=Math.min.apply(null,conMirrowx);
+        marks();
+        poly(arrowx,arrowy,255,255,0,1);
+        createImg();
+        drawLines();
+        x0=x;y0=y;         
+
+    }
+ }  
+    
+   
+
+
+function ifInside(ax,ay,x,y){
+	if(x<Math.max.apply(null,ax)&&
+        x>Math.min.apply(null,ax)&&
+        y<Math.max.apply(null,ay)&&
+        y>Math.min.apply(null,ay)){
+	return true;
+    }else{return false;}
+}    
+
+function drawP(){
+    F-=5;Rx+=2;
+    draw(centerX);
+} 
+function drawM(){
+    F+=5;Rx-=2;
+    draw(centerX);
+} 
+    
+function draw(position){    
+    mainTxt.fillStyle=document.getElementById("page").bgColor;
+    mainTxt.fillRect(0,0,W,H);
+    if(type!=3){
+        createLens(Rx,Ry);  
+        move(lensTx,lensTy,position,H/2); 
+        poly(lensTx,lensTy,255,255,255,1); 
+        createArrow(arrowPosition); 
+        createImg();
+        marks();
+        drawLines();
+        
+    }
+    if(type==3){
+        creatMirrow();  
+        move(conMirrowx,conMirrowy,position,H/2); 
+        drawMirrow();
+        createArrow(arrowPosition); 
+        createImg();
+        marks();
+        drawLines();
+    }
+
+}    
+    
+function drawLines(){
+    if(type!=3){
+        mainTxt.beginPath();        //通過鏡心，不會折射
+        mainTxt.lineWidth=2;     
+        mainTxt.moveTo(arrowx[4],arrowy[4]);
+        mainTxt.lineTo(arrowx[4]+(centerX-arrowx[4])*5,
+                       arrowy[4]+(H/2-arrowy[4])*5);
+        mainTxt.strokeStyle="#ff0000";
+        mainTxt.stroke();
+
+        mainTxt.beginPath();        //通過鏡心，不會折射
+        mainTxt.lineWidth=2;     
+        mainTxt.moveTo(arrowx[4],arrowy[4]);
+        mainTxt.lineTo(imgX[4],imgY[4]);
+        mainTxt.setLineDash([5, 15]);
+        mainTxt.strokeStyle="#ff0000";
+        mainTxt.stroke();
+
+
+        mainTxt.beginPath();                //平行主軸，通過焦點
+        mainTxt.setLineDash([5,15]);
+        mainTxt.moveTo(centerX,arrowy[4]);
+        mainTxt.lineTo(imgX[4],imgY[4]);
+        if(type==2){var x=(arrowx[4]<centerX)?(centerX-F):(centerX+F);
+                mainTxt.lineTo(x,H/2);}
+        mainTxt.strokeStyle="#00ff00";
+        mainTxt.lineWidth=2;
+        mainTxt.stroke();
+
+        mainTxt.beginPath();                //*平行主軸，通過焦點
+        mainTxt.setLineDash([]);
+        mainTxt.moveTo(arrowx[4],arrowy[4]);
+        mainTxt.lineTo(centerX,arrowy[4]);
+
+        if(centerX>arrowx[4])             //判斷物體在左邊還是右邊
+            {if(type==1){mainTxt.lineTo(centerX+(F*25),arrowy[4]+(H/2-arrowy[4])*25);}
+         if(type==2){mainTxt.lineTo(centerX+((centerX-imgX[4])*25),arrowy[4]+(arrowy[4]-imgY[4])*25);}	
+        }
+        else{if(type==1){mainTxt.lineTo(centerX+(-F*25),arrowy[4]+(H/2-arrowy[4])*25);}
+         if(type==2){mainTxt.lineTo(centerX+((centerX-imgX[4])*25),arrowy[4]+(arrowy[4]-imgY[4])*25);}
+        }
+        mainTxt.strokeStyle="#00ff00";
+        mainTxt.lineWidth=2;
+        mainTxt.stroke();
+
+
+
+        if(type==1){
+        if(Math.abs(arrowx[4]-centerX)>F){
+            mainTxt.beginPath();                //通過焦點，平行主軸
+            mainTxt.moveTo(arrowx[4],arrowy[4]);
+            mainTxt.lineTo(centerX,imgY[4]);
+            mainTxt.lineTo(imgX[4]+(imgX[4]-centerX)*25,imgY[4]);
+            mainTxt.strokeStyle="#0000ff";
+            mainTxt.lineWidth=2;
+            mainTxt.stroke();
+            }
+        }
+        if(type==2){
+            mainTxt.beginPath();                //通過焦點，平行主軸
+            mainTxt.moveTo(arrowx[4],arrowy[4]);
+            mainTxt.lineTo(centerX,imgY[4]);
+            mainTxt.lineTo(imgX[4]-(imgX[4]-centerX)*25,imgY[4]);
+            mainTxt.strokeStyle="#0000ff";
+            mainTxt.lineWidth=2;
+            mainTxt.stroke();
+
+            mainTxt.beginPath();
+            mainTxt.setLineDash([5,15]);
+            mainTxt.moveTo(centerX,imgY[4]);
+            mainTxt.lineTo(imgX[4],imgY[4]);
+            mainTxt.moveTo(centerX,imgY[4]);
+            var x=(arrowx[4]<centerX)?(centerX+F):(centerX-F);
+            mainTxt.lineTo(x,H/2);
+            mainTxt.stroke();
+            mainTxt.setLineDash([]);
+        }
+    }
+
+    if(type==3){
+	var p=centerX-arrowPosition;
+        if(p>0){                    //凸面鏡
+            mainTxt.beginPath();
+            mainTxt.moveTo(arrowx[4],arrowy[4]);
+		var temp=(arrowy[4]-H/2)*(arrowy[4]-H/2)/4/F;
+            mainTxt.lineTo(centerX+temp,arrowy[4]);
+            mainTxt.strokeStyle="#00ff00";
+            mainTxt.lineWidth=2;
+            mainTxt.stroke();
+
+            mainTxt.beginPath();
+            mainTxt.moveTo(centerX+temp,arrowy[4]);
+            mainTxt.lineTo(centerX+F,H/2);
+            mainTxt.setLineDash([5,15]);
+            mainTxt.stroke();
+
+            mainTxt.beginPath();
+            mainTxt.moveTo(centerX+temp,arrowy[4]);
+            mainTxt.lineTo((centerX+temp)-5*(centerX+F - (centerX+temp)),H/2-(H/2-arrowy[4])*5);
+            mainTxt.setLineDash([]);
+            mainTxt.stroke();
+
+            mainTxt.beginPath();
+            mainTxt.moveTo(centerX,H/2);
+            mainTxt.lineTo(imgX[4],imgY[4]);
+            mainTxt.setLineDash([5,15]);
+            mainTxt.strokeStyle="#ff0000";
+            mainTxt.lineWidth=2
+            mainTxt.stroke();
+
+            mainTxt.beginPath();
+            mainTxt.moveTo(arrowPosition,arrowy[4]);
+            mainTxt.lineTo(centerX,H/2);
+            mainTxt.lineTo(centerX+(centerX-imgX[4])*5,imgY[4]+(H/2-imgY[4])*5);
+            mainTxt.setLineDash([]);
+            mainTxt.strokeStyle="#ff0000";
+            mainTxt.lineWidth=2
+            mainTxt.stroke();
+
+	                                                   //通過焦點，平行主軸            
+            mainTxt.beginPath();
+            mainTxt.moveTo(arrowPosition,arrowy[4]);
+            mainTxt.lineTo(centerX+F,H/2);
+            mainTxt.moveTo(imgX[4],imgY[4]);mainTxt.lineTo(centerX,imgY[4]);
+            mainTxt.setLineDash([5,15]);
+            mainTxt.strokeStyle="#0000ff";
+            mainTxt.lineWidth=2
+            mainTxt.stroke();
+            
+            var L=centerX+F-arrowPosition;            
+            mainTxt.beginPath();
+            mainTxt.moveTo(arrowPosition,arrowy[4]);
+            mainTxt.lineTo(arrowPosition+(centerX+F-arrowPosition)*((L-F)/L),
+                           arrowy[4]+(H/2-arrowy[4])*((L-F)/L));
+            mainTxt.lineTo(0,imgY[4]);
+            mainTxt.setLineDash([]);
+            mainTxt.strokeStyle="#0000ff";
+            mainTxt.lineWidth=2
+            mainTxt.stroke();
+        }else{                  //凹面鏡
+            mainTxt.beginPath();        //通過鏡心，不會折射
+            mainTxt.lineWidth=2;     
+            mainTxt.moveTo(arrowx[4],arrowy[4]);
+            mainTxt.lineTo(centerX,H/2);
+            mainTxt.lineTo(centerX+(arrowx[4]-centerX)*5,
+                           H/2+(H/2-arrowy[4])*5);
+            mainTxt.strokeStyle="#ff0000";
+            mainTxt.stroke();
+            if(p>-F){              // 焦點內成虛像
+                mainTxt.beginPath();
+                mainTxt.moveTo(centerX,H/2);
+                mainTxt.lineTo(imgX[4],imgY[4]);
+                mainTxt.lineWidth=2; 
+                mainTxt.setLineDash([5,15]);
+                mainTxt.stroke();
+            }
+            
+            mainTxt.beginPath();               //*平行主軸，通過焦點            
+            mainTxt.moveTo(arrowx[4],arrowy[4]);
+            var px=centerX+(arrowy[4]-H/2)*(arrowy[4]-H/2)/4/F;
+	    
+            mainTxt.lineTo(px,arrowy[4]);
+            mainTxt.lineTo(px + (centerX+F-px)*20,arrowy[4]+(H/2-arrowy[4])*20);
+            mainTxt.setLineDash([]);
+            mainTxt.strokeStyle="#00ff00";
+            mainTxt.lineWidth=2;
+            mainTxt.stroke();
+            
+            if(p>-F){                   // 焦點內成虛像
+                mainTxt.beginPath();
+                mainTxt.moveTo(centerX,arrowy[4]);
+                mainTxt.lineTo(imgX[4],imgY[4]);
+                mainTxt.lineWidth=2; 
+                mainTxt.setLineDash([5,15]);
+                mainTxt.stroke();mainTxt.setLineDash([]);
+            }else{                  //00畫通過焦點，平行主軸                
+                mainTxt.beginPath();
+                mainTxt.moveTo(imgX[4],imgY[4]);
+		if((imgY[4]-H/2)<H/6){
+	                mainTxt.lineTo(centerX+(imgY[4]-H/2)*(imgY[4]-H/2)/4/F,imgY[4]);
+			mainTxt.lineTo(arrowx[4],arrowy[4]);
+                	mainTxt.moveTo(imgX[4],imgY[4]);
+               		mainTxt.lineTo(W,imgY[4]);
+		}
+                
+                mainTxt.strokeStyle="#0000ff";
+                mainTxt.lineWidth=2; 
+                mainTxt.stroke();
+               
+            }
+            
+            
+           
+            
+
+
+        }
+        
+    }   
+    
+}
+
+function createLens(rx,ry){
+    lensTx.length=0;lensTy.length=0;//清空
+    if(type==1){
+        for(var i=0;i<=N;i++){
+            var x= Math.cos(Math.PI*3/4+Math.PI*i/2/N)+(1/Math.sqrt(2));
+            var y= Math.sin(Math.PI*3/4+Math.PI*i/2/N);
+            lensTx.push(rx*x);lensTy.push(ry*y);
+        }
+        for(var i=0;i<=N;i++){
+            var x= Math.cos(-Math.PI/4+Math.PI*i/2/N)-(1/Math.sqrt(2));
+            var y= Math.sin(-Math.PI/4+Math.PI*i/2/N);
+            lensTx.push(rx*x);lensTy.push(ry*y);    
+        }
+    }
+    if(type==2){
+        for(var i=0;i<=N;i++){
+            if(type==2){
+                var x= Math.cos(Math.PI*3/4+Math.PI*i/2/N)+(1.1);
+                var y= Math.sin(Math.PI*3/4+Math.PI*i/2/N);
+            }
+                lensTx.push(rx*x);lensTy.push(ry*y);
+        }
+        for(var i=0;i<=N;i++){
+            if(type=2){
+                var x= Math.cos(-Math.PI/4+Math.PI*i/2/N)-(1.1);
+                var y= Math.sin(-Math.PI/4+Math.PI*i/2/N);
+            }
+            lensTx.push(rx*x);lensTy.push(ry*y);    
+        }
+    }
+}
+
+function creatMirrow(){
+    conMirrowx.length=0;conMirrowy.length=0;
+    for(var i=0;i<N+1;i++){
+        var t=-H/6+i*H/3/N;
+        conMirrowx.push(t*t/4/F);
+        conMirrowy.push(t);
+    }
+}    
+
+function drawMirrow(){
+    mainTxt.beginPath();
+    mainTxt.moveTo(conMirrowx[0],conMirrowy[0]);
+    for(var i=0;i<conMirrowx.length;i++){
+            mainTxt.lineTo(conMirrowx[i],conMirrowy[i]);
+    }
+    mainTxt.strokeStyle="#ffffff";
+    mainTxt.lineWidth=20;
+    mainTxt.stroke();    
+}
+
+function move(ax,ay,dx,dy){    
+    for(var i=0;i<ax.length;i++){
+        ax[i]+=dx;   ay[i]+=dy;
+    }
+}
+    
+function poly(ax,ay,r,g,b,a){    
+    mainTxt.beginPath();   
+    mainTxt.moveTo(ax[0],ay[0]);
+    for (var i=0;i<ax.length;i++){
+        mainTxt.lineTo(ax[i],ay[i]);
+    }
+    var mycolor= "rgba("+r+","+g+","+b+","+a+")";    
+    mainTxt.fillStyle = mycolor;
+    mainTxt.fill(); 
+    mainTxt.strokeStyle="#000000";    
+}
+
+function marks(){
+	mainTxt.strokeStyle = "#ffffff";
+	mainTxt.fillStyle = "#ffffff";    
+	mainTxt.lineWidth=2;
+	mainTxt.font = 'italic 20pt Serif';	
+	mainTxt.beginPath(); 
+	mainTxt.moveTo(0,H/2);
+	mainTxt.lineTo(W,H/2);
+
+	mainTxt.moveTo(centerX-F,H/2+10);
+	mainTxt.lineTo(centerX-F,H/2-10);
+	mainTxt.fillText("f",centerX-F,H/2+50);
+	mainTxt.moveTo(centerX+F,H/2+10);
+	mainTxt.lineTo(centerX+F,H/2-10);
+	mainTxt.fillText("f",centerX+F,H/2+50);
+
+	mainTxt.moveTo(centerX-2*F,H/2+10);
+	mainTxt.lineTo(centerX-2*F,H/2-10);
+	mainTxt.fillText("2f",centerX-2*F,H/2+50);
+	mainTxt.moveTo(centerX+2*F,H/2+10);
+	mainTxt.lineTo(centerX+2*F,H/2-10);
+	mainTxt.fillText("2f",centerX+2*F,H/2+50);
+        
+	mainTxt.stroke();
+}
+
+function createArrow(position){	
+	arrowx.length=0;arrowy.length=0;
+	for(var i=0;i<arrowx0.length;i++){
+		arrowx.push(arrowx0[i]*50); 
+		arrowy.push(-arrowy0[i]*50);
+	}
+	move(arrowx,arrowy,position,H/2);
+		//mainTxt.globalCompositeOperation = "xor";
+	poly(arrowx,arrowy,255,255,0,1);
+			//mainTxt.globalCompositeOperation = "source-over";
+}
+
+function createImg(){
+	imgX.length=0;imgY.length=0;
+    if(type!=3){
+        if(type==1){
+            if(ifFilm){mainTxt.fillStyle= "#FFaaaa";
+                       mainTxt.fillRect(W*4/5,H/2-75,20,150);
+                      }//是否顯示底片、視網膜
+                   }//底片、視網膜
+        
+        
+        var j=(centerX-arrowx[4]);
+        var p=(j>0)? (j): (-j);
+        var q; 
+        if(type==1){q=(p*F)/(p-F);}
+        if(type==2){q=-(p*F)/(p+F);}
+
+        var s=q/p;
+        var a=(s<1)? 1:1/s; //決定透明度
+        for(var i=0;i<arrowx.length;i++){
+            imgX.push(arrowx0[i]*50*s);
+            imgY.push(arrowy0[i]*50*s);
+        }
+        var imgNewX=(j>0)?(centerX+q):(centerX-q)  //判斷左邊右邊
+        move(imgX,imgY,imgNewX,H/2);
+        poly(imgX,imgY,255,255,0,a); 
+        if(s<0){                        //虛像
+            var bw=-0.6*50*s; var bh=-4*s;  
+            for(var i=1;i<6;i++){
+                mainTxt.fillStyle=document.getElementById("page").bgColor; 
+                mainTxt.fillRect(imgX[3],imgY[0]-2*bh*i,bw,bh);
+            }
+        }
+    }
+    
+    if(type==3){
+        var j=(centerX-arrowx[4]);　　
+        var p=(j>0)? (j): (-j);
+        if(j>0){                    //凸面鏡j>0
+	    var q=-(p*F)/(p+F);
+            var s=q/p;
+            for(var i=0;i<arrowx.length;i++){
+                imgX.push(arrowx0[i]*50*s);
+                imgY.push(arrowy0[i]*50*s);
+            }
+            var imgNewX=centerX-q;
+            move(imgX,imgY,imgNewX,H/2);
+            poly(imgX,imgY,255,255,0,1);
+            var bw=-0.6*50*s; var bh=-4*s;  
+            for(var i=1;i<6;i++){
+                mainTxt.fillStyle=document.getElementById("page").bgColor; 
+                mainTxt.fillRect(imgX[3],imgY[0]-2*bh*i,bw,bh);
+            }
+        }else{                      //凹面鏡
+            var q=(p*F)/(p-F);
+            var s=q/p;
+            var a=(s<1)? 1:1/s; //決定透明度
+            for(var i=0;i<arrowx.length;i++){
+            	imgX.push(arrowx0[i]*50*s);
+            	imgY.push(arrowy0[i]*50*s);
+            }
+            var imgNewX=centerX+q;
+            move(imgX,imgY,imgNewX,H/2);
+            poly(imgX,imgY,255,255,0,a); 
+        if(s<0){                        //虛像
+            var bw=-0.6*50*s; var bh=-4*s;  
+            for(var i=1;i<6;i++){
+                mainTxt.fillStyle=document.getElementById("page").bgColor; 
+                mainTxt.fillRect(imgX[3],imgY[0]-2*bh*i,bw,bh);
+	    }
+         }
+        } 
+    }
+	
+
+}
+    
+
+    
+</script>
+
+</body>
+</html>
+
+ 
