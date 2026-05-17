@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雙球系統 - 物理模擬動畫</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --panel-bg: #16213e;
+            --text: #e0e0e0;
+            --accent: #e94560;
+            --accent2: #0f3460;
+            --slider-track: #2a2a4a;
+            --border: #333366;
+            --gold: #f0a500;
+            --blue: #4da6ff;
+            --green: #4dff88;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .canvas-wrapper {
+            background: #0a0a18;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        canvas {
+            display: block;
+            cursor: default;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            min-width: 280px;
+            max-width: 350px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel h2 {
+            text-align: center;
+            font-size: 1.4em;
+            color: #fff;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .scenario-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .scenario-btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 2px solid var(--border);
+            background: var(--accent2);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.25s;
+            text-align: center;
+            letter-spacing: 0.3px;
+        }
+        .scenario-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 16px rgba(233, 68, 96, 0.4);
+        }
+        .scenario-btn:hover {
+            border-color: #888;
+            color: #fff;
+        }
+
+        .param-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .param-group label {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #bbb;
+            letter-spacing: 0.3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .param-group label .val {
+            color: var(--gold);
+            font-size: 0.9em;
+            font-weight: 700;
+            min-width: 40px;
+            text-align: right;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--slider-track);
+            outline: none;
+            cursor: pointer;
+            margin: 4px 0 8px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.15s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.95em;
+            letter-spacing: 0.4px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .btn-play {
+            background: #2ecc71;
+            color: #000;
+        }
+        .btn-play:hover {
+            background: #3dff85;
+            box-shadow: 0 4px 16px rgba(46, 204, 113, 0.4);
+        }
+        .btn-pause {
+            background: #f39c12;
+            color: #000;
+        }
+        .btn-pause:hover {
+            background: #f7b733;
+            box-shadow: 0 4px 16px rgba(243, 156, 18, 0.4);
+        }
+        .btn-reset {
+            background: #e74c3c;
+            color: #fff;
+        }
+        .btn-reset:hover {
+            background: #ff5c4a;
+            box-shadow: 0 4px 16px rgba(231, 76, 60, 0.4);
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .info-box {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 0.85em;
+            line-height: 1.7;
+            border: 1px solid var(--border);
+            color: #ccc;
+        }
+        .info-box .highlight {
+            color: var(--gold);
+            font-weight: 700;
+        }
+        .info-box .highlight2 {
+            color: var(--blue);
+            font-weight: 700;
+        }
+        .info-box .highlight3 {
+            color: var(--green);
+            font-weight: 700;
+        }
+
+        .legend {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 0.8em;
+            align-items: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .legend-dot.ball-a {
+            background: #ff6b6b;
+        }
+        .legend-dot.ball-b {
+            background: #4da6ff;
+        }
+        .legend-dot.cm {
+            background: #4dff88;
+            width: 8px;
+            height: 8px;
+        }
+
+        #impulseTimeGroup {
+            transition: opacity 0.3s, max-height 0.3s;
+            overflow: hidden;
+        }
+
+        @media (max-width: 850px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .panel {
+                max-width: 100%;
+                min-width: auto;
+                width: 100%;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="canvas-wrapper">
+            <canvas id="mainCanvas"></canvas>
+        </div>
+        <div class="panel" id="panel">
+            <h2>⚙️ 物理模擬控制</h2>
+
+            <div class="scenario-selector">
+                <button class="scenario-btn active" id="btnScenario1" onclick="setScenario(1)">情境一<br><small>瞬時衝量</small></button>
+                <button class="scenario-btn" id="btnScenario2" onclick="setScenario(3)">情境三<br><small>持續固定力</small></button>
+            </div>
+
+            <div class="param-group">
+                <label>💪 力的大小 (F) <span class="val" id="valForce">1.00 N</span></label>
+                <input type="range" id="sliderForce" min="0.1" max="10" step="0.1" value="1">
+            </div>
+
+            <div class="param-group" id="impulseTimeGroup">
+                <label>⏱️ 力作用時間 (Δt) <span class="val" id="valImpulseTime">0.50 s</span></label>
+                <input type="range" id="sliderImpulseTime" min="0.05" max="3" step="0.05" value="0.5">
+            </div>
+
+            <div class="param-group">
+                <label>⚽ 單球質量 (m) <span class="val" id="valMass">1.00 kg</span></label>
+                <input type="range" id="sliderMass" min="0.1" max="5" step="0.1" value="1">
+            </div>
+
+            <div class="param-group">
+                <label>📏 桿長 (L) <span class="val" id="valLength">1.00 m</span></label>
+                <input type="range" id="sliderLength" min="0.2" max="3" step="0.05" value="1">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-play" id="btnPlay" onclick="playSim()">▶ 播放</button>
+                <button class="btn btn-pause" id="btnPause" onclick="pauseSim()">⏸ 暫停</button>
+                <button class="btn btn-reset" onclick="resetSim()">↺ 重置</button>
+            </div>
+
+            <div class="info-box" id="infoBox">
+                ⏰ 時間: <span class="highlight">0.00</span> s<br>
+                📍 質心位置: <span class="highlight3">(0.00, 0.00)</span> m<br>
+                🚀 質心速度: <span class="highlight2">0.000</span> m/s<br>
+                🔄 角速度 ω: <span class="highlight">0.000</span> rad/s<br>
+                📐 桿角度 θ: <span class="highlight">90.0</span>°
+            </div>
+
+            <div class="legend">
+                <span class="legend-item"><span class="legend-dot ball-a"></span> 球A (受力)</span>
+                <span class="legend-item"><span class="legend-dot ball-b"></span> 球B</span>
+                <span class="legend-item"><span class="legend-dot cm"></span> 質心</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ============ DOM 元素 ============
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            const infoBox = document.getElementById('infoBox');
+            const btnScenario1 = document.getElementById('btnScenario1');
+            const btnScenario2 = document.getElementById('btnScenario2');
+            const btnPlay = document.getElementById('btnPlay');
+            const btnPause = document.getElementById('btnPause');
+            const impulseTimeGroup = document.getElementById('impulseTimeGroup');
+
+            const sliderForce = document.getElementById('sliderForce');
+            const sliderImpulseTime = document.getElementById('sliderImpulseTime');
+            const sliderMass = document.getElementById('sliderMass');
+            const sliderLength = document.getElementById('sliderLength');
+            const valForce = document.getElementById('valForce');
+            const valImpulseTime = document.getElementById('valImpulseTime');
+            const valMass = document.getElementById('valMass');
+            const valLength = document.getElementById('valLength');
+
+            // ============ 參數 ============
+            let scenario = 1; // 1 或 3
+            let forceMagnitude = 1.0; // N
+            let impulseDuration = 0.5; // s (僅情境一)
+            let ballMass = 1.0; // kg (單球)
+            let rodLength = 1.0; // m
+
+            // ============ 物理狀態 ============
+            let simTime = 0;
+            let cmPosX = 0; // 質心 x (世界坐標)
+            let cmPosY = 0; // 質心 y
+            let cmVelX = 0; // 質心速度 x
+            let cmVelY = 0; // 質心速度 y
+            let theta = Math.PI / 2; // 桿與+x軸夾角，初始π/2 (桿沿+y)
+            let omega = 0; // 角速度 rad/s
+
+            // ============ 模擬控制 ============
+            let isPlaying = true;
+            let lastFrameTime = null;
+            const MAX_SUBSTEP_DT = 1 / 480; // 最大子步時間 ~2ms
+            const MIN_SUBSTEP_DT = 1 / 2000;
+
+            // ============ 軌跡 ============
+            let trailA = []; // {x, y} 世界坐標
+            let trailB = [];
+            let trailCM = [];
+            const MAX_TRAIL_POINTS = 1500;
+            let trailCounter = 0;
+            const TRAIL_EVERY_N_FRAMES = 1;
+
+            // ============ Canvas 設定 ============
+            const SCALE = 110; // 像素/米
+            let canvasWidth, canvasHeight;
+
+            function resizeCanvas() {
+                const wrapper = canvas.parentElement;
+                const maxW = Math.min(780, window.innerWidth * 0.62);
+                const maxH = Math.min(560, window.innerHeight * 0.82);
+                canvasWidth = Math.floor(maxW);
+                canvasHeight = Math.floor(maxH);
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+            });
+
+            // ============ 世界↔螢幕轉換 ============
+            function worldToScreen(wx, wy, cameraX, cameraY) {
+                const sx = canvasWidth / 2 + (wx - cameraX) * SCALE;
+                const sy = canvasHeight / 2 - wy * SCALE; // y軸翻轉
+                return { x: sx, y: sy };
+            }
+
+            // ============ 取得當前外力 (在給定時間) ============
+            function getCurrentForce(currentTime) {
+                if (scenario === 1) {
+                    // 情境一：僅在作用時間內有力
+                    if (currentTime < impulseDuration) {
+                        return forceMagnitude;
+                    }
+                    return 0;
+                } else {
+                    // 情境三：持續固定力
+                    return forceMagnitude;
+                }
+            }
+
+            // ============ 物理步進 (半隱式歐拉) ============
+            function physicsStep(dt) {
+                if (dt <= 0) return;
+                const F_now = getCurrentForce(simTime);
+                const totalMass = 2 * ballMass;
+                const I_cm = ballMass * rodLength * rodLength / 2; // mL²/2
+
+                // 質心加速度
+                const a_cm_x = F_now / totalMass;
+                const a_cm_y = 0;
+
+                // 球A相對質心位置
+                const halfL = rodLength / 2;
+                const rAx = halfL * Math.cos(theta);
+                const rAy = halfL * Math.sin(theta);
+
+                // 力矩 (力沿+x, 作用在球A)
+                const tau = rAx * 0 - rAy * F_now; // r × F = (rAx, rAy) × (F, 0) = -rAy*F
+                const alpha = tau / I_cm;
+
+                // 半隱式歐拉: 先更新速度，再更新位置
+                omega += alpha * dt;
+                theta += omega * dt;
+                cmVelX += a_cm_x * dt;
+                cmVelY += a_cm_y * dt;
+                cmPosX += cmVelX * dt;
+                cmPosY += cmVelY * dt;
+                simTime += dt;
+            }
+
+            // ============ 重置模擬 ============
+            function resetState() {
+                simTime = 0;
+                cmPosX = 0;
+                cmPosY = 0;
+                cmVelX = 0;
+                cmVelY = 0;
+                theta = Math.PI / 2;
+                omega = 0;
+                trailA = [];
+                trailB = [];
+                trailCM = [];
+                trailCounter = 0;
+                lastFrameTime = null;
+            }
+
+            // ============ 繪製 ============
+            function drawGrid(cameraX, cameraY) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                ctx.lineWidth = 1;
+                const gridSpacing = 1.0; // 1米間距
+                const gridSpacingPx = gridSpacing * SCALE;
+
+                // 計算可見世界範圍
+                const halfW = canvasWidth / 2 / SCALE;
+                const halfH = canvasHeight / 2 / SCALE;
+                const worldLeft = cameraX - halfW;
+                const worldRight = cameraX + halfW;
+                const worldBottom = -halfH; // cameraY=0
+                const worldTop = halfH;
+
+                const startX = Math.floor(worldLeft / gridSpacing) * gridSpacing;
+                const startY = Math.floor(worldBottom / gridSpacing) * gridSpacing;
+                const endX = Math.ceil(worldRight / gridSpacing) * gridSpacing;
+                const endY = Math.ceil(worldTop / gridSpacing) * gridSpacing;
+
+                for (let wx = startX; wx <= endX; wx += gridSpacing) {
+                    const sx = canvasWidth / 2 + (wx - cameraX) * SCALE;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, 0);
+                    ctx.lineTo(sx, canvasHeight);
+                    ctx.stroke();
+                }
+                for (let wy = startY; wy <= endY; wy += gridSpacing) {
+                    const sy = canvasHeight / 2 - wy * SCALE;
+                    ctx.beginPath();
+                    ctx.moveTo(0, sy);
+                    ctx.lineTo(canvasWidth, sy);
+                    ctx.stroke();
+                }
+
+                // 畫坐標軸 (粗線)
+                const originScreen = worldToScreen(0, 0, cameraX, cameraY);
+                ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+                ctx.lineWidth = 1.5;
+                if (originScreen.y > 0 && originScreen.y < canvasHeight) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, originScreen.y);
+                    ctx.lineTo(canvasWidth, originScreen.y);
+                    ctx.stroke();
+                }
+                if (originScreen.x > 0 && originScreen.x < canvasWidth) {
+                    ctx.beginPath();
+                    ctx.moveTo(originScreen.x, 0);
+                    ctx.lineTo(originScreen.x, canvasHeight);
+                    ctx.stroke();
+                }
+            }
+
+            function drawTrail(trail, color, alpha, cameraX, cameraY) {
+                if (trail.length < 2) return;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                const p0 = worldToScreen(trail[0].x, trail[0].y, cameraX, cameraY);
+                ctx.moveTo(p0.x, p0.y);
+                for (let i = 1; i < trail.length; i++) {
+                    const p = worldToScreen(trail[i].x, trail[i].y, cameraX, cameraY);
+                    ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+
+            function drawArrow(sx, sy, angle, length, color, lineWidth) {
+                ctx.strokeStyle = color;
+                ctx.fillStyle = color;
+                ctx.lineWidth = lineWidth || 2.5;
+                ctx.lineCap = 'round';
+                const ex = sx + length * Math.cos(angle);
+                const ey = sy - length * Math.sin(angle);
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(ex, ey);
+                ctx.stroke();
+                // 箭頭
+                const arrowSize = Math.min(length * 0.28, 16);
+                const ang1 = angle + Math.PI * 0.75;
+                const ang2 = angle - Math.PI * 0.75;
+                ctx.beginPath();
+                ctx.moveTo(ex, ey);
+                ctx.lineTo(ex + arrowSize * Math.cos(ang1), ey - arrowSize * Math.sin(ang1));
+                ctx.lineTo(ex + arrowSize * Math.cos(ang2), ey - arrowSize * Math.sin(ang2));
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            function drawScene(timestamp) {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+                // 背景
+                const bgGrad = ctx.createRadialGradient(canvasWidth / 2, canvasHeight / 2, 50, canvasWidth / 2, canvasHeight /
+                    2, Math.max(canvasWidth, canvasHeight));
+                bgGrad.addColorStop(0, '#111827');
+                bgGrad.addColorStop(1, '#080c14');
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+                // 相機跟隨質心
+                const cameraX = cmPosX;
+                const cameraY = 0;
+
+                // 網格
+                drawGrid(cameraX, cameraY);
+
+                // 軌跡
+                drawTrail(trailCM, 'rgba(120,255,180,0.55)', 0.55, cameraX, cameraY);
+                drawTrail(trailB, 'rgba(77,166,255,0.5)', 0.5, cameraX, cameraY);
+                drawTrail(trailA, 'rgba(255,130,130,0.6)', 0.6, cameraX, cameraY);
+
+                // 計算球位置
+                const halfL = rodLength / 2;
+                const ballAx = cmPosX + halfL * Math.cos(theta);
+                const ballAy = halfL * Math.sin(theta);
+                const ballBx = cmPosX - halfL * Math.cos(theta);
+                const ballBy = -halfL * Math.sin(theta);
+
+                const sA = worldToScreen(ballAx, ballAy, cameraX, cameraY);
+                const sB = worldToScreen(ballBx, ballBy, cameraX, cameraY);
+                const sCM = worldToScreen(cmPosX, cmPosY, cameraX, cameraY);
+
+                // 桿
+                ctx.strokeStyle = '#c0c0d0';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(sA.x, sA.y);
+                ctx.lineTo(sB.x, sB.y);
+                ctx.stroke();
+                // 桿的光澤
+                ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(sA.x, sA.y);
+                ctx.lineTo(sB.x, sB.y);
+                ctx.stroke();
+
+                // 球B (藍色)
+                const ballRadius = 14;
+                const gradB = ctx.createRadialGradient(sB.x - 3, sB.y - 4, ballRadius * 0.2, sB.x, sB.y, ballRadius);
+                gradB.addColorStop(0, '#8cd4ff');
+                gradB.addColorStop(0.7, '#2980b9');
+                gradB.addColorStop(1, '#1a3a5c');
+                ctx.fillStyle = gradB;
+                ctx.beginPath();
+                ctx.arc(sB.x, sB.y, ballRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 球A (橙紅色，受力球)
+                const gradA = ctx.createRadialGradient(sA.x - 3, sA.y - 4, ballRadius * 0.2, sA.x, sA.y, ballRadius);
+                gradA.addColorStop(0, '#ffb3b3');
+                gradA.addColorStop(0.6, '#e74c3c');
+                gradA.addColorStop(1, '#5c1a1a');
+                ctx.fillStyle = gradA;
+                ctx.beginPath();
+                ctx.arc(sA.x, sA.y, ballRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 質心標記
+                ctx.fillStyle = '#4dff88';
+                ctx.beginPath();
+                ctx.arc(sCM.x, sCM.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // 質心十字
+                ctx.strokeStyle = 'rgba(77,255,136,0.6)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(sCM.x - 10, sCM.y);
+                ctx.lineTo(sCM.x + 10, sCM.y);
+                ctx.moveTo(sCM.x, sCM.y - 10);
+                ctx.lineTo(sCM.x, sCM.y + 10);
+                ctx.stroke();
+
+                // 力箭頭 (如果有力)
+                const F_now = getCurrentForce(simTime);
+                if (F_now > 0.001) {
+                    const arrowLen = Math.min(28 + F_now * 22, 100);
+                    const forceAngle = 0; // +x方向
+                    drawArrow(sA.x, sA.y, forceAngle, arrowLen, '#ff4444', 3);
+                    // 標籤
+                    ctx.fillStyle = '#ff6666';
+                    ctx.font = 'bold 13px "Segoe UI","PingFang TC",sans-serif';
+                    ctx.fillText('F=' + F_now.toFixed(1) + 'N', sA.x + arrowLen + 8, sA.y - 4);
+                }
+
+                // 球標籤
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px "Segoe UI","PingFang TC",sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('A', sA.x, sA.y - ballRadius - 10);
+                ctx.fillText('B', sB.x, sB.y - ballRadius - 10);
+                ctx.fillText('CM', sCM.x, sCM.y - 14);
+                ctx.textAlign = 'start';
+
+                // 更新資訊面板
+                const thetaDeg = ((theta % (2 * Math.PI)) * 180 / Math.PI);
+                const displayTheta = ((thetaDeg % 360) + 360) % 360;
+                const thetaDisplay = displayTheta > 180 ? displayTheta - 360 : displayTheta;
+                infoBox.innerHTML = `
+                    ⏰ 時間: <span class="highlight">${simTime.toFixed(2)}</span> s<br>
+                    📍 質心位置: <span class="highlight3">(${cmPosX.toFixed(2)}, ${cmPosY.toFixed(2)})</span> m<br>
+                    🚀 質心速度: <span class="highlight2">${Math.sqrt(cmVelX*cmVelX+cmVelY*cmVelY).toFixed(3)}</span> m/s<br>
+                    🔄 角速度 ω: <span class="highlight">${omega.toFixed(3)}</span> rad/s<br>
+                    📐 桿角度 θ: <span class="highlight">${thetaDisplay.toFixed(1)}</span>°
+                    ${scenario===1 && simTime>=impulseDuration ? '<br>🔓 <span style="color:#aaa;">力已撤除，自由運動中</span>' : ''}
+                    ${scenario===3 ? '<br>🔁 <span style="color:#ff9;">固定力持續作用中</span>' : ''}
+                `;
+            }
+
+            // ============ 主迴圈 ============
+            function mainLoop(timestamp) {
+                if (!isPlaying) {
+                    lastFrameTime = null;
+                    drawScene(timestamp);
+                    requestAnimationFrame(mainLoop);
+                    return;
+                }
+
+                if (lastFrameTime === null) {
+                    lastFrameTime = timestamp;
+                    drawScene(timestamp);
+                    requestAnimationFrame(mainLoop);
+                    return;
+                }
+
+                let rawDt = (timestamp - lastFrameTime) / 1000;
+                lastFrameTime = timestamp;
+
+                // 限制最大步長避免數值爆炸
+                rawDt = Math.min(rawDt, 0.1);
+                if (rawDt <= 0) {
+                    drawScene(timestamp);
+                    requestAnimationFrame(mainLoop);
+                    return;
+                }
+
+                // 子步劃分
+                const numSubsteps = Math.max(1, Math.ceil(rawDt / MAX_SUBSTEP_DT));
+                const subDt = rawDt / numSubsteps;
+
+                for (let i = 0; i < numSubsteps; i++) {
+                    physicsStep(subDt);
+                }
+
+                // 記錄軌跡
+                trailCounter++;
+                if (trailCounter % TRAIL_EVERY_N_FRAMES === 0) {
+                    const halfL = rodLength / 2;
+                    trailA.push({ x: cmPosX + halfL * Math.cos(theta), y: halfL * Math.sin(theta) });
+                    trailB.push({ x: cmPosX - halfL * Math.cos(theta), y: -halfL * Math.sin(theta) });
+                    trailCM.push({ x: cmPosX, y: cmPosY });
+                    if (trailA.length > MAX_TRAIL_POINTS) trailA.shift();
+                    if (trailB.length > MAX_TRAIL_POINTS) trailB.shift();
+                    if (trailCM.length > MAX_TRAIL_POINTS) trailCM.shift();
+                }
+
+                drawScene(timestamp);
+                requestAnimationFrame(mainLoop);
+            }
+
+            // ============ UI 函數 ============
+            function setScenario(s) {
+                scenario = s;
+                resetState();
+                if (scenario === 1) {
+                    btnScenario1.classList.add('active');
+                    btnScenario2.classList.remove('active');
+                    impulseTimeGroup.style.maxHeight = '80px';
+                    impulseTimeGroup.style.opacity = '1';
+                } else {
+                    btnScenario1.classList.remove('active');
+                    btnScenario2.classList.add('active');
+                    impulseTimeGroup.style.maxHeight = '0px';
+                    impulseTimeGroup.style.opacity = '0';
+                }
+                lastFrameTime = null;
+                updateSliderDisplay();
+            }
+
+            function playSim() {
+                isPlaying = true;
+                lastFrameTime = null;
+                btnPlay.style.boxShadow = '0 0 20px rgba(46,204,113,0.7)';
+                btnPause.style.boxShadow = 'none';
+            }
+
+            function pauseSim() {
+                isPlaying = false;
+                lastFrameTime = null;
+                btnPause.style.boxShadow = '0 0 20px rgba(243,156,18,0.7)';
+                btnPlay.style.boxShadow = 'none';
+            }
+
+            function resetSim() {
+                resetState();
+                lastFrameTime = null;
+                if (!isPlaying) {
+                    isPlaying = true;
+                }
+                btnPlay.style.boxShadow = '0 0 20px rgba(46,204,113,0.7)';
+                btnPause.style.boxShadow = 'none';
+                updateSliderDisplay();
+            }
+
+            function updateSliderDisplay() {
+                forceMagnitude = parseFloat(sliderForce.value);
+                impulseDuration = parseFloat(sliderImpulseTime.value);
+                ballMass = parseFloat(sliderMass.value);
+                rodLength = parseFloat(sliderLength.value);
+
+                valForce.textContent = forceMagnitude.toFixed(2) + ' N';
+                valImpulseTime.textContent = impulseDuration.toFixed(2) + ' s';
+                valMass.textContent = ballMass.toFixed(2) + ' kg';
+                valLength.textContent = rodLength.toFixed(2) + ' m';
+            }
+
+            function onSliderChange() {
+                updateSliderDisplay();
+                resetState();
+                lastFrameTime = null;
+                if (!isPlaying) {
+                    isPlaying = true;
+                }
+                btnPlay.style.boxShadow = '0 0 20px rgba(46,204,113,0.7)';
+                btnPause.style.boxShadow = 'none';
+            }
+
+            // ============ 事件監聽 ============
+            sliderForce.addEventListener('input', onSliderChange);
+            sliderImpulseTime.addEventListener('input', onSliderChange);
+            sliderMass.addEventListener('input', onSliderChange);
+            sliderLength.addEventListener('input', onSliderChange);
+
+            // 鍵盤快捷鍵
+            window.addEventListener('keydown', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case ' ':
+                        e.preventDefault();
+                        if (isPlaying) pauseSim();
+                        else playSim();
+                        break;
+                    case 'r':
+                        resetSim();
+                        break;
+                    case '1':
+                        setScenario(1);
+                        break;
+                    case '3':
+                        setScenario(3);
+                        break;
+                }
+            });
+
+            // ============ 初始化 ============
+            function init() {
+                updateSliderDisplay();
+                setScenario(1); // 預設情境一
+                resetState();
+                isPlaying = true;
+                btnPlay.style.boxShadow = '0 0 20px rgba(46,204,113,0.7)';
+                lastFrameTime = null;
+                requestAnimationFrame(mainLoop);
+            }
+
+            // 暴露函數到全域
+            window.setScenario = setScenario;
+            window.playSim = playSim;
+            window.pauseSim = pauseSim;
+            window.resetSim = resetSim;
+
+            init();
+        })();
+    </script>
+</body>
+</html>
