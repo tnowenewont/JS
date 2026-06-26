@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>利樂包物理模擬</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f6f9;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 120vh; /* 增加高度確保滾動條出現 */
+            user-select: none;
+            overflow-y: auto; /* 確保縱向滾動條出現 */
+        }
+
+        h1 {
+            margin: 0 0 5px 0;
+            color: #cc2027;
+            font-size: 24px;
+        }
+
+        p {
+            margin: 0 0 15px 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            position: relative;
+            margin-bottom: 50px;
+        }
+
+        canvas {
+            background-color: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: grab;
+        }
+
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .controls {
+            margin-top: 15px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            width: 80px;
+            font-weight: bold;
+            color: #333;
+            font-size: 13px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .value-display {
+            width: 45px;
+            text-align: right;
+            font-family: monospace;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .zoom-info {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        button {
+            padding: 8px;
+            border: none;
+            background-color: #333;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>義美利樂包 - 模擬器</h1>
+    <p>  </p>
+
+    <div id="container">
+        <div class="zoom-info" id="zoomTag">放大倍率: 1.0x</div>
+        <canvas id="simCanvas" width="500" height="500"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>旋轉角度:</label>
+                <input type="range" id="angleSlider" min="-180" max="180" value="0">
+                <span class="value-display" id="angleVal">0°</span>
+            </div>
+            <div class="control-group">
+                <label>內容量:</label>
+                <input type="range" id="levelSlider" min="15" max="85" value="55">
+                <span class="value-display" id="levelVal">55%</span>
+            </div>
+            <button id="resetBtn">重置視圖</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const angleSlider = document.getElementById('angleSlider');
+        const levelSlider = document.getElementById('levelSlider');
+        const angleVal = document.getElementById('angleVal');
+        const levelVal = document.getElementById('levelVal');
+        const resetBtn = document.getElementById('resetBtn');
+        const zoomTag = document.getElementById('zoomTag');
+
+        let box = {
+            x: canvas.width / 2,
+            y: canvas.height / 2 + 30,
+            width: 140,
+            height: 350,
+            angle: 0,
+            targetAngle: 0,
+            liquidLevel: 0.55,
+            scale: 1.0 
+        };
+
+        let isDragging = false;
+        let lastX, lastY;
+
+        // 滾輪縮放 (限制在畫布範圍內觸發，防止影響頁面滾動)
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault(); 
+            const zoomSpeed = 0.05;
+            if (e.deltaY < 0) box.scale += zoomSpeed;
+            else box.scale -= zoomSpeed;
+            box.scale = Math.min(Math.max(box.scale, 0.4), 3.0);
+            zoomTag.innerText = `放大倍率: ${box.scale.toFixed(1)}x`;
+        }, { passive: false });
+
+        angleSlider.addEventListener('input', (e) => {
+            box.targetAngle = parseInt(e.target.value) * Math.PI / 180;
+            angleVal.innerText = e.target.value + '°';
+        });
+
+        levelSlider.addEventListener('input', (e) => {
+            box.liquidLevel = parseInt(e.target.value) / 100;
+            levelVal.innerText = e.target.value + '%';
+        });
+
+        resetBtn.addEventListener('click', () => {
+            box.x = canvas.width / 2;
+            box.y = canvas.height / 2 + 30;
+            box.targetAngle = 0;
+            box.scale = 1.0;
+            angleSlider.value = 0;
+            angleVal.innerText = '0°';
+            zoomTag.innerText = `放大倍率: 1.0x`;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            let dx = e.clientX - lastX;
+            let dy = e.clientY - lastY;
+            box.x += dx;
+            box.y += dy;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        /**
+         * 核心修正：將瓶蓋幾何形狀直接整合進入主路徑
+         * 解決：(1) 消除紅圈處接縫黑線 (2) 讓水位跨入瓶蓋
+         */
+        function drawIntegratedPath(ctx, w, h) {
+            let roofH = 70; // 屋頂起始高度
+            let finW = 16;  // 頂部封口半寬
+            let finH = 25;  // 頂部封口高度
+
+            ctx.beginPath();
+            // 1. 左半邊與頂部封口
+            ctx.moveTo(-w/2, h/2);
+            ctx.lineTo(-w/2, -h/2 + roofH);
+            ctx.lineTo(-finW, -h/2);
+            ctx.lineTo(-finW, -h/2 - finH);
+            ctx.lineTo(finW, -h/2 - finH);
+            ctx.lineTo(finW, -h/2);
+
+            // 2. 右側斜坡整合瓶蓋
+            // 斜坡起點 (finW, -h/2), 終點 (w/2, -h/2 + roofH)
+            let x1 = finW, y1 = -h/2;
+            let x2 = w/2, y2 = -h/2 + roofH;
+
+            // 計算斜坡角度與垂直向量
+            let slopeAngle = Math.atan2(y2 - y1, x2 - x1);
+            let nx = Math.cos(slopeAngle - Math.PI/2); // 垂直斜面向上的 X 向量
+            let ny = Math.sin(slopeAngle - Math.PI/2); // 垂直斜面向上的 Y 向量
+
+            let capPos = 0.45; // 瓶蓋在斜坡上的位置百分比
+            let capWidth = 24; // 瓶蓋寬度
+            let capHeight = 16; // 瓶蓋厚度
+            
+            // 計算瓶蓋在斜坡上的兩個接點
+            let t1 = capPos - 0.1;
+            let t2 = capPos + 0.1;
+            
+            let p1x = x1 + (x2 - x1) * t1;
+            let p1y = y1 + (y2 - y1) * t1;
+            let p2x = x1 + (x2 - x1) * t2;
+            let p2y = y1 + (y2 - y1) * t2;
+
+            // 延伸出方形瓶蓋的三個邊
+            ctx.lineTo(p1x, p1y); // 接點1
+            ctx.lineTo(p1x + nx * capHeight, p1y + ny * capHeight); // 方形角1
+            ctx.lineTo(p2x + nx * capHeight, p2y + ny * capHeight); // 方形角2
+            ctx.lineTo(p2x, p2y); // 接點2
+
+            // 3. 右下半部
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(w/2, h/2);
+            ctx.closePath();
+        }
+
+        function draw() {
+            box.angle += (box.targetAngle - box.angle) * 0.15;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景參考線
+            ctx.strokeStyle = '#eee';
+            ctx.lineWidth = 1;
+            for(let i = 50; i < canvas.height; i += 50) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            ctx.save();
+            ctx.translate(box.x, box.y);
+            ctx.scale(box.scale, box.scale); 
+            ctx.rotate(box.angle);
+
+            // A. 填充一體成型的白色背景
+            ctx.fillStyle = '#fff';
+            drawIntegratedPath(ctx, box.width, box.height);
+            ctx.fill();
+
+            // B. 水平面裁切 (因為瓶蓋已包含在主路徑內，水會自動進入瓶蓋)
+            ctx.save();
+            drawIntegratedPath(ctx, box.width, box.height);
+            ctx.clip(); 
+            ctx.save();
+            ctx.rotate(-box.angle); 
+
+            let currentWaterY = (0.5 - box.liquidLevel) * box.height;
+            ctx.fillStyle = 'rgba(100, 160, 255, 0.8)';
+            ctx.fillRect(-1000, currentWaterY, 2000, 1000); // 畫大矩形水面
+            
+            ctx.restore();
+            ctx.restore();
+
+            // C. 裝飾：底部紅塊
+            ctx.fillStyle = '#cc2027';
+            ctx.fillRect(-box.width/2, box.height/2 - 35, box.width, 35);
+
+            // D. 文字排版
+            ctx.fillStyle = '#cc2027';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 15px "Microsoft JhengHei"';
+            ctx.fillText("👑 義美", 0, -35);
+
+            ctx.font = 'bold 28px "Microsoft JhengHei"';
+            ctx.fillText("鮮乳", 12, 10);
+            ctx.font = 'bold 14px "Microsoft JhengHei"';
+            ctx.fillText("全脂", -32, 2);
+
+            ctx.font = '10px Arial';
+            ctx.fillText("I-MEI FRESH MILK", 0, 42);
+            ctx.font = 'bold 11px "Microsoft JhengHei"';
+            ctx.fillText("100% 台灣生乳使用", 0, 62);
+
+            // E. 黑色外邊框 (一體成型，消除紅圈處接縫線)
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 4.5; // 加粗一點讓質感更像示意圖
+            ctx.lineJoin = 'round';
+            drawIntegratedPath(ctx, box.width, box.height);
+            ctx.stroke();
+
+            // F. 方形瓶蓋上的防滑紋路 (選配細節)
+            // 由於瓶蓋已合併，我們手動定位畫內部紋路
+            ctx.save();
+            let finW = 16, roofH = 70;
+            let x1 = finW, y1 = -box.height/2;
+            let x2 = box.width/2, y2 = -box.height/2 + roofH;
+            let capPos = 0.45;
+            let cx = x1 + (x2 - x1) * capPos;
+            let cy = y1 + (y2 - y1) * capPos;
+            ctx.translate(cx, cy);
+            ctx.rotate(Math.atan2(y2 - y1, x2 - x1));
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-6, 3); ctx.lineTo(-6, 12);
+            ctx.moveTo(0, 3); ctx.lineTo(0, 12);
+            ctx.moveTo(6, 3); ctx.lineTo(6, 12);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.restore();
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
